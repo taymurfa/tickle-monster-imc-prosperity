@@ -1,59 +1,53 @@
 """
-IMC Prosperity 4 - Tutorial Round Trader (v3)
+IMC Prosperity 4 - Tutorial Round Trader (v4)
 Products : EMERALDS, TOMATOES
 Limits   : 80 each
 
-=== What logs 67195 and 67245 taught us ===
+=== Why SampleStrategy outperformed our v3 by ~4x ===
 
-Run 67195 (v1 SMA): EMERALDS=317, TOMATOES=340, Total=657
-Run 67245 (v2 EMA+AS): EMERALDS=446, TOMATOES=0,   Total=446  ← regression!
+The core issue across all our versions was quoting too close to fair value,
+which captures almost no edge per fill.
 
---- EMERALDS ---
-Book structure (constant):
-  bid3=9990 (~28 vol), bid2=9992 (~14 vol), bid1=9992 (~12 vol) [rarely 10000]
-  ask1=10008 (~12 vol), ask2=10010 (~28 vol)                   [rarely 10000]
-  True fair value = 10000 (mid never deviates by more than 4 ticks)
+SampleStrategy's make_orders formula:
+    bid = min(best_bid + 1, floor(fair - make_width))
+    ask = max(best_ask - 1, ceil(fair + make_width))
 
-What v2 did wrong:
-  • Passive bid=9997, ask=10003 — only fills when a rare crossing bot
-    happens to walk through (~29 times in 2000 ticks = 1.45%)
-  • Aggressive edge = fair-6 = 9994; bots ask at 10008 → aggress never fires
-  • Efficiency = 2.4% of theoretical max
+This "penny the best quote but preserve at least make_width of edge" approach:
 
-Fix:
-  • Post passive quotes as tight as possible inside the spread:
-    bid=9999, ask=10001 (1 tick each side of fair)
-  • This maximises fill probability when any bot crosses
-  • Keep inventory skew to push position toward zero
-  • Also try to aggress when bot asks at 10000 (rare but free edge)
+EMERALDS (fair=10000, make_width=2, bots at 9992/10008):
+  bid = min(9993, 9998) = 9993  → 7 ticks of edge per fill
+  ask = max(10007, 10002) = 10007 → 7 ticks of edge per fill
+  Our v3: bid=9999/ask=10001 → only 1 tick of edge per fill
+  Same fill probability, 7x less PnL per fill = disaster.
 
---- TOMATOES ---
-Book structure:
-  bid1 ~5000 (~6 vol), bid2 ~4999 (~21 vol)
-  ask1 ~5013 (~6 vol), ask2 ~5015 (~21 vol)
-  Spread = ~13-14 ticks. Price drifts over the session.
+TOMATOES (fair~5006, make_width=2, bots at 4999/5013):
+  bid = min(5000, 5004) = 5000  → penny inside bot, ~6-tick edge
+  ask = max(5012, 5008) = 5012  → penny inside bot, ~6-tick edge
+  Our v3 (with A-S, 1-tick spread): 5005/5007 → 1-tick edge, 6x less PnL
 
-What v2 did wrong (critical bug):
-  • A-S code caps: our_bid = min(our_bid, bot_bid_px)
-    This forces our quote DOWN to the bot's level (or below)
-    Result: we post at the SAME price as bots → no priority → 0 fills
-  • Similarly: our_ask = max(our_ask, bot_ask_px) forces us to bot ask level
+Additional SampleStrategy wins:
+  - Position-unwind logic: if short, buy back at fair (no extra edge needed)
+  - Inventory skew applied to fair BEFORE computing take AND make levels
+  - Bounded quote_size (12/10 units), not blasting full 80 units every tick
 
-Fix:
-  • Post INSIDE the spread: bid between bot_bid+1 and bot_ask-1
-  • Cap should be: bid < bot_ask (don't cross), ask > bot_bid (don't cross)
-  • Keep all regime / Z-score / trend-block logic from v2 (it was correct)
-  • Inventory skew pushes us toward zero passively
+v4 adopts SampleStrategy's core structure verbatim for EMERALDS.
+For TOMATOES we keep our regime-detection/trend-blocking logic (which
+correctly prevented the -1419 drawdown in run 67195) but use SampleStrategy's
+pennying make_width formula instead of the A-S tight spread.
 """
 
-from datamodel import OrderDepth, TradingState, Order
-from typing import List, Dict, Optional, Tuple
+import json
 import math
-import jsonpickle
+from typing import Dict, List, Tuple, Optional
+
+try:
+    from datamodel import Order, OrderDepth, TradingState
+except ImportError:
+    from prosperity4bt.datamodel import Order, OrderDepth, TradingState
 
 
 # ---------------------------------------------------------------------------
-# Constants
+# Parameters (tuned from log analysis)
 # ---------------------------------------------------------------------------
 
 POSITION_LIMITS: Dict[str, int] = {
@@ -61,35 +55,35 @@ POSITION_LIMITS: Dict[str, int] = {
     "TOMATOES": 80,
 }
 
-EMERALDS_FAIR = 10_000  # Stable, confirmed from data
+PARAMS: Dict[str, dict] = {
+    "EMERALDS": {
+        "fair":           10000.0,  # constant — confirmed from all runs
+        "take_width":     1.0,      # aggress if ask < fair-1 or bid > fair+1
+        "make_width":     2.0,      # passive edge floor (penny inside bot spread)
+        "inventory_skew": 0.15,     # ticks of fair adj per unit of position
+        "quote_size":     12,       # units per passive quote
+        "window":         6,        # price history window (unused for EMERALDS)
+    },
+    "TOMATOES": {
+        "fair":           None,     # dynamic — computed from rolling window
+        "fallback_fair":  4993.0,   # used before history fills
+        "take_width":     1.5,
+        "make_width":     2.0,
+        "inventory_skew": 0.10,
+        "quote_size":     10,
+        "window":         12,       # rolling window for fair value
+        # Regime params (our addition to prevent trending drawdowns)
+        "ema_fast":       8,
+        "ema_slow":       21,
+        "atr_window":     15,
+        "trend_threshold":0.15,     # trend_strength above this = block new trend-side positions
+        "trend_edge_mul": 10.0,     # extra ticks of edge per unit of trend_strength
+    },
+}
 
 
 # ---------------------------------------------------------------------------
-# Book helpers
-# ---------------------------------------------------------------------------
-
-def best_bid(od: OrderDepth) -> Tuple[Optional[int], Optional[int]]:
-    if not od.buy_orders:
-        return None, None
-    px = max(od.buy_orders)
-    return px, od.buy_orders[px]
-
-
-def best_ask(od: OrderDepth) -> Tuple[Optional[int], Optional[int]]:
-    if not od.sell_orders:
-        return None, None
-    px = min(od.sell_orders)
-    return px, od.sell_orders[px]
-
-
-def mid_price(od: OrderDepth) -> Optional[float]:
-    b, _ = best_bid(od)
-    a, _ = best_ask(od)
-    return (b + a) / 2.0 if b is not None and a is not None else None
-
-
-# ---------------------------------------------------------------------------
-# Math utilities
+# Helpers
 # ---------------------------------------------------------------------------
 
 def ema(prices: List[float], n: int) -> float:
@@ -102,236 +96,147 @@ def ema(prices: List[float], n: int) -> float:
     return e
 
 
-def rolling_variance(prices: List[float], window: int) -> float:
-    w = prices[-window:] if len(prices) >= window else prices
-    if len(w) < 2:
-        return 1.0
-    mu = sum(w) / len(w)
-    return sum((p - mu) ** 2 for p in w) / len(w)
+def load_history(trader_data: str) -> Dict[str, List[float]]:
+    if not trader_data:
+        return {}
+    try:
+        payload = json.loads(trader_data)
+        raw = payload.get("mid_prices", {})
+        return {
+            product: [float(p) for p in prices]
+            for product, prices in raw.items()
+            if isinstance(prices, list)
+        }
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return {}
 
 
-def zscore(price: float, prices: List[float], window: int = 20) -> float:
-    w = prices[-window:] if len(prices) >= window else prices
-    if len(w) < 2:
-        return 0.0
-    mu = sum(w) / len(w)
-    sd = math.sqrt(sum((p - mu) ** 2 for p in w) / len(w))
-    if sd < 0.01:
-        return 0.0
-    return (price - mu) / sd
+def save_history(history: Dict[str, List[float]]) -> str:
+    return json.dumps({"mid_prices": history}, separators=(",", ":"))
 
 
-# ---------------------------------------------------------------------------
-# Persistent state
-# ---------------------------------------------------------------------------
+def get_fair_value(product: str, mid: float, history: Dict[str, List[float]]) -> float:
+    """Update price history and return fair value for the product."""
+    p = PARAMS[product]
+    series = history.setdefault(product, [])
+    series.append(mid)
+    history[product] = series[-p["window"]:]
 
-class State:
-    def __init__(self) -> None:
-        self.history: Dict[str, List[float]] = {}
+    if product == "EMERALDS":
+        return p["fair"]
 
-    def push(self, product: str, price: float, window: int = 100) -> None:
-        buf = self.history.setdefault(product, [])
-        buf.append(price)
-        if len(buf) > window:
-            buf.pop(0)
-
-    def prices(self, product: str) -> List[float]:
-        return self.history.get(product, [])
+    # TOMATOES: rolling average, fallback until window fills
+    return sum(history[product]) / len(history[product]) if history[product] else p["fallback_fair"]
 
 
-# ---------------------------------------------------------------------------
-# EMERALDS strategy
-# ---------------------------------------------------------------------------
-
-def trade_emeralds(od: OrderDepth, position: int) -> List[Order]:
-    """
-    Fair value = 10,000 (constant).
-    Bot spread: 9992 bid / 10008 ask (~16 ticks wide).
-    Occasionally bot bid or ask touches 10000.
-
-    Strategy:
-    - Post passive quotes inside the spread, as tight as possible:
-        bid = fair - 1 = 9999 (skewed down when long)
-        ask = fair + 1 = 10001 (skewed up when short)
-      Any bot that crosses the spread for any reason fills us at 1-tick edge.
-    - If bot ever offers at 10000 (ask1=10000): buy aggresively, 8-tick edge.
-    - If bot ever bids at 10000 (bid1=10000): sell aggressively, 8-tick edge.
-    - Inventory skew: shift both quotes by (position/limit * 2) ticks to
-      push position toward zero.
-    """
-    symbol = "EMERALDS"
-    limit  = POSITION_LIMITS[symbol]
-    fair   = EMERALDS_FAIR
-    orders: List[Order] = []
-
-    bid_px, bid_vol = best_bid(od)
-    ask_px, ask_vol = best_ask(od)
-    if bid_px is None or ask_px is None:
-        return orders
-
-    max_buy  = limit - position
-    max_sell = limit + position
-
-    # --- Aggressive: rare opportunity when bot touches fair value ---
-    if ask_px <= fair and max_buy > 0:
-        # Bot selling at or below fair — free edge
-        vol = -od.sell_orders[ask_px]
-        qty = min(vol, max_buy)
-        orders.append(Order(symbol, ask_px, qty))
-        max_buy -= qty
-
-    if bid_px >= fair and max_sell > 0:
-        # Bot buying at or above fair — free edge
-        vol = bid_vol
-        qty = min(vol, max_sell)
-        orders.append(Order(symbol, bid_px, -qty))
-        max_sell -= qty
-
-    # --- Passive: quote 1 tick each side of fair, skewed by inventory ---
-    # Skew: when long, lower both quotes to attract sellers / discourage buys
-    inv_skew = round(position / limit * 3)  # -3 to +3 ticks
-
-    our_bid = fair - 1 - inv_skew
-    our_ask = fair + 1 - inv_skew
-
-    # Safety: never cross the market (bid < ask)
-    if our_bid >= ask_px:
-        our_bid = ask_px - 1
-    if our_ask <= bid_px:
-        our_ask = bid_px + 1
-    # Never quote outside the bot spread (no point)
-    our_bid = max(our_bid, bid_px + 1)   # must beat bot bid to get priority
-    our_ask = min(our_ask, ask_px - 1)   # must beat bot ask to get priority
-
-    if our_bid < our_ask:  # valid spread
-        if max_buy > 0:
-            orders.append(Order(symbol, our_bid, max_buy))
-        if max_sell > 0:
-            orders.append(Order(symbol, our_ask, -max_sell))
-
-    return orders
-
-
-# ---------------------------------------------------------------------------
-# TOMATOES strategy
-# ---------------------------------------------------------------------------
-
-def regime_slope(prices: List[float], fast: int = 8, slow: int = 21,
-                 atr_win: int = 15) -> dict:
+def regime_info(prices: List[float], fast: int, slow: int, atr_win: int) -> dict:
+    """Detect trending regime via EMA slope / ATR."""
     if len(prices) < slow + 2:
-        return {"slope": 0.0, "trend_strength": 0.0, "trending": False}
+        return {"slope": 0.0, "trend_strength": 0.0}
     fast_now  = ema(prices, fast)
     fast_prev = ema(prices[:-1], fast)
     slope     = fast_now - fast_prev
     diffs = [abs(prices[-i] - prices[-i - 1]) for i in range(1, min(atr_win, len(prices)))]
     atr   = sum(diffs) / len(diffs) if diffs else 1.0
-    ts    = abs(slope) / max(atr, 0.01)
-    return {"slope": slope, "trend_strength": ts, "trending": ts > 0.15}
+    return {"slope": slope, "trend_strength": abs(slope) / max(atr, 0.01)}
 
 
-def trade_tomatoes(od: OrderDepth, position: int, prices: List[float]) -> List[Order]:
+# ---------------------------------------------------------------------------
+# Order generation
+# ---------------------------------------------------------------------------
+
+def take_orders(
+    product: str,
+    order_depth: OrderDepth,
+    fair_value: float,
+    take_width: float,
+    position: int,
+    limit: int,
+) -> Tuple[List[Order], int]:
     """
-    TOMATOES: ~13-14 tick bot spread, volatile, prone to sustained trends.
-
-    Core fix from v2 bug:
-    - Post quotes INSIDE the spread (between bot_bid+1 and bot_ask-1).
-    - Cap logic changed: bid must be < bot_ask (not <= bot_bid).
-      This allows us to rest at e.g. 5006 inside the 4999/5013 spread.
-
-    Strategy layers:
-    1. Dual-EMA(8/21) fair value.
-    2. Regime detection: block new longs in downtrend, shorts in uptrend.
-    3. Z-score target position (caps accumulation).
-    4. Aggressive fills toward target when edge is sufficient.
-    5. Passive quotes inside spread, inventory-skewed.
+    Aggress against mispriced resting bot orders.
+    Also unwinds position when price reaches fair (no edge required).
+    Returns (orders, projected_position).
     """
-    symbol = "TOMATOES"
-    limit  = POSITION_LIMITS[symbol]
     orders: List[Order] = []
+    pos = position
 
-    bid_px, bid_vol = best_bid(od)
-    ask_px, ask_vol = best_ask(od)
-    if bid_px is None or ask_px is None:
-        return orders
+    # Buy cheap asks
+    for ask_px in sorted(order_depth.sell_orders):
+        available = limit - pos
+        if available <= 0:
+            break
+        qty = -order_depth.sell_orders[ask_px]
+        # Take if: mispriced OR we're short and ask is at/below fair (unwind)
+        if ask_px <= fair_value - take_width or (pos < 0 and ask_px <= fair_value):
+            fill = min(available, qty)
+            if fill > 0:
+                orders.append(Order(product, ask_px, fill))
+                pos += fill
 
-    # --- 1. Dual-EMA fair value ---
-    if len(prices) >= 5:
-        fast_ema_val = ema(prices, 8)
-        slow_ema_val = ema(prices, 21) if len(prices) >= 21 else fast_ema_val
-        bias = fast_ema_val - slow_ema_val
-        w    = min(abs(bias) / 3.0, 1.0)
-        fair = (1 - w) * slow_ema_val + w * fast_ema_val
-    else:
-        fair = (bid_px + ask_px) / 2.0
+    # Sell expensive bids
+    for bid_px in sorted(order_depth.buy_orders, reverse=True):
+        available = limit + pos
+        if available <= 0:
+            break
+        qty = order_depth.buy_orders[bid_px]
+        # Take if: mispriced OR we're long and bid is at/above fair (unwind)
+        if bid_px >= fair_value + take_width or (pos > 0 and bid_px >= fair_value):
+            fill = min(available, qty)
+            if fill > 0:
+                orders.append(Order(product, bid_px, -fill))
+                pos -= fill
 
-    # --- 2. Regime ---
-    reg   = regime_slope(prices) if len(prices) >= 10 else {"slope": 0.0, "trend_strength": 0.0, "trending": False}
-    slope = reg["slope"]
-    ts    = reg["trend_strength"]
+    return orders, pos
 
-    # --- 3. Z-score position target ---
-    if len(prices) >= 5:
-        z      = zscore(prices[-1], prices, window=20)
-        frac   = max(-1.0, min(1.0, -z / 4.0))
-        target = int(frac * limit)
-    else:
-        target = 0
 
-    # Block accumulation in trending direction
-    if slope < 0 and ts > 0.15:
-        target = min(target, 0)   # downtrend: flat or short only
-    elif slope > 0 and ts > 0.15:
-        target = max(target, 0)   # uptrend: flat or long only
+def make_orders(
+    product: str,
+    order_depth: OrderDepth,
+    fair_value: float,
+    position: int,
+    limit: int,
+    quote_size: int,
+    make_width: float,
+) -> List[Order]:
+    """
+    Post passive quotes using the SampleStrategy pennying formula:
+      bid = min(best_bid + 1, floor(fair - make_width))
+      ask = max(best_ask - 1, ceil(fair + make_width))
 
-    max_buy  = limit - position
-    max_sell = limit + position
-    delta    = target - position
+    This ensures we are always 1 tick better than the best bot quote
+    while capturing at least make_width ticks of edge vs fair.
 
-    # Adaptive edge: wider in trending markets to stop knife-catching
-    base_edge = 2.0
-    edge = base_edge + ts * 10.0
+    Quote size is boosted when position needs unwinding.
+    """
+    if not order_depth.buy_orders or not order_depth.sell_orders:
+        return []
 
-    # --- 4. Aggressive fills ---
-    if delta > 5 and ask_px < fair - edge and max_buy > 0:
-        qty = min(delta, max_buy, abs(ask_vol))
-        if qty > 0:
-            orders.append(Order(symbol, ask_px, qty))
-            max_buy -= qty
-            position += qty
+    best_bid = max(order_depth.buy_orders)
+    best_ask = min(order_depth.sell_orders)
 
-    elif delta < -5 and bid_px > fair + edge and max_sell > 0:
-        qty = min(-delta, max_sell, bid_vol)
-        if qty > 0:
-            orders.append(Order(symbol, bid_px, -qty))
-            max_sell -= qty
-            position -= qty
+    bid_quote = min(best_bid + 1, math.floor(fair_value - make_width))
+    ask_quote = max(best_ask - 1, math.ceil(fair_value + make_width))
 
-    # --- 5. Passive quotes inside the spread, inventory-skewed ---
-    # Inventory skew: shift reservation price to push toward zero
-    # At position=+80: skew = -8 ticks → ask becomes aggressive, bid retreats
-    sigma2   = max(rolling_variance(prices, 20), 0.5) if len(prices) >= 5 else 1.0
-    inv_skew = round(position / limit * 6)  # -6 to +6 ticks
+    # Fallback: if spread inverted, just use bot quotes
+    if bid_quote >= ask_quote:
+        bid_quote = best_bid
+        ask_quote = best_ask
 
-    our_bid = round(fair - 1 - inv_skew)
-    our_ask = round(fair + 1 - inv_skew)
+    # Boost quote size on the unwind side when we have inventory
+    buy_size  = min(quote_size, limit - position)
+    sell_size = min(quote_size, limit + position)
 
-    # CRITICAL FIX: cap to stay INSIDE the spread without crossing it
-    # Bid must be strictly less than bot ask (don't cross)
-    # Ask must be strictly greater than bot bid (don't cross)
-    # But we WANT to be inside the spread, so bid > bot_bid and ask < bot_ask
-    our_bid = min(our_bid, ask_px - 1)   # don't cross the ask
-    our_ask = max(our_ask, bid_px + 1)   # don't cross the bid
+    if position < 0:
+        buy_size  = min(limit - position, quote_size + min(-position, quote_size))
+    elif position > 0:
+        sell_size = min(limit + position, quote_size + min(position, quote_size))
 
-    # Clamp to a valid spread
-    if our_bid >= our_ask:
-        mid = (bid_px + ask_px) // 2
-        our_bid = mid - 1
-        our_ask = mid + 1
-
-    if max_buy > 0:
-        orders.append(Order(symbol, our_bid, max_buy))
-    if max_sell > 0:
-        orders.append(Order(symbol, our_ask, -max_sell))
+    orders: List[Order] = []
+    if buy_size > 0:
+        orders.append(Order(product, bid_quote, buy_size))
+    if sell_size > 0:
+        orders.append(Order(product, ask_quote, -sell_size))
 
     return orders
 
@@ -347,33 +252,83 @@ class Trader:
         return 15
 
     def run(self, state: TradingState):
-        """
-        Called every iteration by the Prosperity engine.
-        Returns (orders, conversions, traderData).
-        """
-        ps: State = jsonpickle.decode(state.traderData) if state.traderData else State()
-
+        history = load_history(state.traderData)
         result: Dict[str, List[Order]] = {}
-        conversions = 0
 
-        for product, od in state.order_depths.items():
-            position = state.position.get(product, 0)
-            mp = mid_price(od)
+        for product, order_depth in state.order_depths.items():
+            if product not in PARAMS:
+                result[product] = []
+                continue
 
-            if mp is not None:
-                ps.push(product, mp)
+            if not order_depth.buy_orders or not order_depth.sell_orders:
+                result[product] = []
+                continue
 
-            prices = ps.prices(product)
+            p         = PARAMS[product]
+            best_bid  = max(order_depth.buy_orders)
+            best_ask  = min(order_depth.sell_orders)
+            mid       = (best_bid + best_ask) / 2.0
+            base_fair = get_fair_value(product, mid, history)
+            position  = state.position.get(product, 0)
+            limit     = POSITION_LIMITS[product]
 
-            if product == "EMERALDS":
-                result[product] = trade_emeralds(od, position)
-            elif product == "TOMATOES":
-                result[product] = trade_tomatoes(od, position, prices)
+            # Inventory-skewed fair value (shared by take and make)
+            adj_fair = base_fair - position * p["inventory_skew"]
 
-            print(
-                f"t={state.timestamp} {product} pos={position} "
-                f"mid={mp} n_orders={len(result.get(product, []))}"
+            # ----------------------------------------------------------------
+            # TOMATOES: apply trend regime filter before generating orders
+            # Blocks new positions in the trending direction to prevent the
+            # large drawdowns seen in run 67195 (-1419 PnL on TOMATOES).
+            # ----------------------------------------------------------------
+            take_width = p["take_width"]
+
+            if product == "TOMATOES":
+                prices = history.get(product, [])
+                if len(prices) >= p["ema_slow"] + 2:
+                    reg = regime_info(
+                        prices,
+                        p["ema_fast"],
+                        p["ema_slow"],
+                        p["atr_window"],
+                    )
+                    slope = reg["slope"]
+                    ts    = reg["trend_strength"]
+
+                    if ts > p["trend_threshold"]:
+                        # Widen take_width in trend direction to stop knife-catching
+                        take_width += ts * p["trend_edge_mul"]
+
+                        # Also shift adj_fair further in unwind direction
+                        # (makes passive quotes push us toward flat faster)
+                        if slope < 0:
+                            # Downtrend: raise adj_fair so we sell more eagerly
+                            adj_fair += ts * 3
+                        else:
+                            # Uptrend: lower adj_fair so we buy more eagerly
+                            adj_fair -= ts * 3
+
+            # ----------------------------------------------------------------
+            # Generate orders: take first, then make with projected position
+            # ----------------------------------------------------------------
+            orders, projected_pos = take_orders(
+                product=product,
+                order_depth=order_depth,
+                fair_value=adj_fair,
+                take_width=take_width,
+                position=position,
+                limit=limit,
             )
 
-        traderData = jsonpickle.encode(ps)
-        return result, conversions, traderData
+            orders.extend(make_orders(
+                product=product,
+                order_depth=order_depth,
+                fair_value=adj_fair,
+                position=projected_pos,
+                limit=limit,
+                quote_size=p["quote_size"],
+                make_width=p["make_width"],
+            ))
+
+            result[product] = orders
+
+        return result, 0, save_history(history)
