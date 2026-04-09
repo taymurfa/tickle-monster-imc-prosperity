@@ -1,0 +1,262 @@
+I’m opening the archive and checking the file structure so I can tell you what kind of system or market setup it resembles.
+
+I’ve confirmed it’s a tiny order-book dataset with two products. One of them looks almost pegged to a fixed fair value, which is a big clue.
+
+Thought for 1m 15s
+
+This looks like a toy order-book trading tutorial, basically a market-making / fair-value estimation exercise rather than a full multi-asset or cross-product round.
+
+What’s inside the zip:
+
+prices_round_0_day_-1.csv
+prices_round_0_day_-2.csv
+trades_round_0_day_-1.csv
+trades_round_0_day_-2.csv
+
+And the two products are just:
+
+EMERALDS
+TOMATOES
+
+What it resembles:
+
+EMERALDS looks like a pegged / fixed-fair-value product. Its mid is basically glued around 10,000 with very tiny variation. That usually means the intended game is: estimate fair value fast, quote around it, and capture spread when the book gets misaligned.
+TOMATOES looks more like a noisier single-name product with more drift and wider movement around a looser fair value. That usually pushes you toward light directional bias, adaptive quoting, or simple mean-reversion / momentum tests depending on the microstructure.
+
+So overall, this looks like:
+
+A beginner quant trading sim
+A limit-order-book dataset
+Designed to teach basic market making, fair-value inference, and inventory control
+Very likely in the style of a Prosperity / IMC-style tutorial round
+
+That also lines up with the earlier write-up you attached, which talks about estimating a hidden “true underlying price” from order-book walls using a “Wall Mid” rather than just trading raw mids.
+
+My blunt read:
+
+EMERALDS = tutorial market-making anchor
+TOMATOES = slightly more dynamic second product
+Whole file = practice environment for writing a simple trading bot
+
+It does not look like:
+
+options
+ETF arb
+conversion arb
+cross-exchange arb
+macro/news trading
+
+It looks like Round 0 / training wheels microstructure data.
+
+If you want, I can next tell you exactly what strategy each product seems to want you to build.
+
+I’m matching the tutorial products to the prior write-ups now. The main question is whether this should be treated like fixed-fair-value market making, slow-walk market making, or something fancier.
+
+Thought for 1m 6s
+
+The most applicable strategy here is simple fair-value market making, specifically:
+
+EMERALDS → Rainforest Resin-style
+TOMATOES → Kelp-style
+
+That is the closest match by far. The tutorial doc says EMERALDS have a quite stable value while TOMATOES fluctuate over time.
+
+Why this is the right mapping:
+
+The prior winner advice says Rainforest Resin was a beginner-friendly product with a permanently fixed true price, where the right play was:
+
+take any obviously favorable trades
+then post passive quotes just inside existing liquidity
+manage inventory simply
+focus on edge vs fill probability, not fancy prediction.
+
+It then says Kelp was basically the same structure except the true price moved a bit, and the key insight was that the future price was still essentially unpredictable, so the best estimate was just the current fair price / WallMid, and the optimal strategy stayed almost identical: take favorable trades, then quote around fair value, flatten inventory when needed.
+
+That lines up almost perfectly with the Prosperity 4 tutorial framing:
+
+EMERALDS = stable-value product
+TOMATOES = fluctuating product
+tutorial round meant to teach basic controls and first algorithm, not some exotic structure like options, ETF arb, or conversion arb.
+
+Also, from the sample CSVs in the zip I checked:
+
+EMERALDS are basically pinned around 10,000
+TOMATOES move around a lot more, but still look like a single-product quoting problem, not a special-structure product
+
+So the best answer is:
+
+Most applicable strategy
+
+A 2-layer market-making bot:
+
+EMERALDS: fixed-anchor market making around a stable fair value
+TOMATOES: dynamic fair-value market making around current mid / wall-mid
+Why not the other strategies?
+Not Squid Ink / bot-behavior following: no evidence yet of some Olivia-style exploitable agent pattern being the primary edge here.
+Not ETF stat arb: no basket/constituent structure exists here.
+Not options / vol trading: irrelevant product structure.
+Not complex ML / overfit mean reversion: the winner advice explicitly pushes simple robust structure first and warns against blindly adding fancy techniques without a reason.
+What I’d actually do
+
+For EMERALDS:
+
+assume fair value is basically fixed near 10,000
+immediately hit/lift clearly favorable prices
+otherwise quote one tick better than visible liquidity while preserving positive expected edge
+use inventory limits aggressively
+
+For TOMATOES:
+
+estimate fair value from current mid or wall-mid
+do the same market making, but with wider spreads and stronger inventory skew
+avoid pretending you can forecast short-term moves unless the data clearly proves it
+
+So bluntly:
+build a Rainforest-Resin/Kelp hybrid, not a fancy strategy.
+That is the strategy most supported by both the prior write-up and the tutorial round description.
+
+I’m pulling the exact sections where they explain the mechanics, because the useful part is not “market make” in the abstract — it’s the sequence they used each timestep and why they believed adverse selection was low.
+
+Thought for 46s
+
+Yes — and the important part is that the prior winners were not doing fancy “high-frequency alpha” here. For products like this, they were basically running a disciplined microstructure bot built around three ideas:
+
+estimate fair value,
+immediately take any clearly good trades,
+then leave passive quotes just inside the book and manage inventory.
+
+For your tutorial round, that maps very naturally onto the two products because the tutorial itself says EMERALDS are quite stable while TOMATOES fluctuate over time. That is almost the same split as the prior winners’ “fixed fair value” product versus “slowly moving fair value” product.
+
+How they thought about it
+
+Their big edge was not “predict next price.” It was understanding the simulator’s mechanics first. In Prosperity, your bot sees the outstanding quotes in order_depths, can send orders that either cross existing bot quotes or leave residual passive quotes, and if those passive quotes are not hit during the iteration, they are automatically canceled by the end of the iteration. The winners explicitly say that in their earlier round, once they understood the environment, they realized the problem was about optimizing fills and edge, not forecasting random short-term moves.
+
+That matters because it means the right question is:
+
+“What is my fair value right now, and can I buy below it / sell above it?”
+
+Not:
+
+“Can I predict the next move?”
+
+How they did it on the fixed-value product
+
+For Rainforest Resin, the prior winners say the true price was permanently fixed at 10,000. Their logic was extremely simple:
+
+if someone is offering below fair value, buy it immediately
+if someone is bidding above fair value, sell it immediately
+after taking those gifts, place passive quotes slightly better than existing liquidity
+if inventory gets too skewed, flatten it back near fair value so you can keep trading.
+
+In their own words, each timestep they first took favorable trades, then posted passive orders by overbidding on bids and undercutting on asks while keeping a positive edge, and flattened inventory at 10,000 if needed.
+
+That is the clean template for EMERALDS.
+
+So for EMERALDS, the mental model is:
+
+fair value is basically anchored
+you are not trying to “discover a signal”
+you are harvesting mistakes around that anchor
+inventory is just a constraint, not a thesis.
+How they did it on the moving product
+
+For Kelp, the winners say the true price moved a bit, but only as a slow random walk. Their key conclusion was that the next move was still essentially unpredictable, so the best estimate of fair value was just the current fair value. They used what they called WallMid as their proxy for true price.
+
+Their definition of WallMid is important. They say they identified the bid wall and ask wall — deep-liquidity levels that seemed to come from bots “who knew” the rounded true price — and then averaged those levels to get a more stable estimate of fair value than the raw midpoint.
+
+Then they traded Kelp almost the same way as Rainforest Resin:
+
+first take anything favorable relative to WallMid
+then quote slightly better than the book around that fair value
+if position gets too large, neutralize at roughly zero edge.
+
+That is the clean template for TOMATOES.
+
+So for TOMATOES, the mental model is:
+
+fair value is not fixed, but it is local
+don’t pretend you know the next move unless the data proves it
+just keep updating your estimate and market make around it.
+Why this worked in Prosperity
+
+The prior winners make a very specific point: in that market structure, speed and cancellation games were irrelevant because you had a full snapshot of the book each timestep, and orders only lived for one timestep. They say that on Rainforest Resin, this meant the whole job was simply the edge vs. fill probability trade-off.
+
+That’s why their strategy is so practical:
+
+aggressive orders harvest obvious mispricings now
+passive orders monetize future bot flow
+flattening inventory keeps you from getting trapped and losing capacity.
+
+And the current Prosperity docs are consistent with that style of execution: the simulator exposes outstanding quotes, allows immediate matching against them, leaves excess size as a passive quote, and cancels unfilled passive quotes after the iteration.
+
+What their per-timestep loop probably looked like
+
+In plain English, the winners’ logic was roughly:
+
+Step 1: Estimate fair value
+
+fixed number for the stable product
+WallMid / current market-based estimate for the moving product.
+
+Step 2: Sweep obvious value
+
+buy asks below fair value
+sell bids above fair value.
+
+Step 3: Post passive quotes
+
+improve the best bid by a tick if still below fair value
+improve the best ask by a tick if still above fair value
+only quote where the edge is still positive.
+
+Step 4: Adjust for inventory
+
+if long, be more eager to sell and less eager to buy
+if short, be more eager to buy and less eager to sell
+if too imbalanced, flatten at zero/low edge.
+
+That is the entire engine.
+
+What this means for EMERALDS specifically
+
+EMERALDS should be treated like the prior winners’ fixed-price product. The tutorial says it has “quite a stable value,” so the first thing I would do is test whether a constant anchor works well enough. If it does, your job is mostly to:
+
+lift any cheap asks,
+hit any rich bids,
+otherwise rest one-tick-improved quotes around the anchor,
+stay inside the 80-position limit.
+
+In other words, EMERALDS is probably where you make your easy money if the simulator behaves similarly.
+
+What this means for TOMATOES specifically
+
+TOMATOES should be treated like the winners’ slow-moving product. The tutorial says it fluctuates, but that alone does not imply you should build a predictor. The prior winners’ lesson from Kelp was that a moving product can still be best traded by simple market making if the flow has no real predictive content.
+
+So TOMATOES likely wants:
+
+a live fair-value estimate,
+somewhat wider quoting than EMERALDS,
+stronger inventory controls,
+and skepticism toward any “signal” until you actually prove it.
+What not to do yet
+
+The prior winners repeatedly warn against skipping straight to fancy models. They emphasize first-principles understanding, testing how the environment works, and avoiding strategies that only look good in backtest without a clear structural reason.
+
+So for this tutorial round, I would not start with:
+
+mean reversion alpha,
+trader-ID behavior following,
+ETF spread logic,
+options-style modeling,
+or ML.
+
+I would start with the boring thing that the prior winners actually used on analogous products:
+take edge, quote edge, control inventory.
+
+The shortest possible summary is:
+
+EMERALDS: prior-winner style fixed-anchor market maker
+TOMATOES: prior-winner style dynamic fair-value market maker
+Main edge: simulator mechanics + quote placement, not prediction.
+
+If you want, I can turn this into a concrete bot design with exact decision rules for fair value, quote placement, and inventory skew for both products.
