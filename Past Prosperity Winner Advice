@@ -1,0 +1,711 @@
+We are a team of three close friends — Arne Witt, Marvin Schuster and Timo Diehm — who have competed together in several algorithmic/quant trading competitions over the past few years. Along the way, we (as Frankfurt Hedgehogs) been fortunate to achieve consistent top placements across different events:
+
+3rd place out of 3,000+ teams in Optiver’s Ready Trader Go (2023)
+5th place out of 9,000+ teams in IMC’s Prosperity 2 (2024)
+2nd place out of 12,000+ teams in IMC’s Prosperity 3 (2025)
+Through these experiences, we have developed a way of approaching problems that has served us well across very different environments. These principles outlined here have played a key role in our success so far and may offer valuable guidance to others looking to improve their performance in competitive environments.
+
+Along the way, we have seen countless teams — often extremely talented and hardworking — struggle because they missed one or more of these basic principles. Observing how often the same core mistakes undermined otherwise strong efforts was part of what motivated us to write. Consequently, it is intended for a broad audience:
+
+If you participated in competitions like Ready Trader Go or Prosperity, or are preparing for future events, you may find direct applications here.
+If you are interested more generally in structured problem-solving — in trading, research, or engineering — the mindset we describe should still resonate.
+Our focus is not on specific tactics but on ways of thinking that, in our view, consistently set the foundation for high-level performance. They are simple ideas — but applying them consistently has made a real difference for us.
+
+1. Question Your Assumptions — Or Better Yet, Start with None
+In any competitive or analytical environment, it’s natural to start with assumptions about how things are supposed to work. In finance, for instance, many participants immediately assume that the goal is to forecast returns — and that their strategies must revolve around making directional bets on price.
+
+But assumptions can be limiting. They quietly define the questions you ask, the metrics you optimize, and even the possibilities you allow yourself to see.
+
+Wrong assumptions don’t just slow you down — they trap you inside invisible frameworks far away from optimal solutions, leading you to solve problems that were never the real challenge. You can spend hours building a solution to the wrong task, without realizing it.
+
+In our first major competition — Optiver’s Ready Trader Go — the challenge was framed as “making markets” on a synthetic asset. Naturally, most teams focused on quoting tight bid-ask spreads, managing inventory, and optimizing their market-making models. But stepping back, we realized that the true objective was much simpler: maximize profits, however possible. By freeing ourselves from the framing of “being a market maker,” we discovered a completely different path to consistently outperform: one that had very little to do with traditional market making at all.
+
+Similarly, in another competition — IMC’s Prosperity — it would have been easy to assume that the goal was to forecast price movements. But after examining the environment carefully, we realized that in some products, price changes were generated almost randomly — meaning forecasting efforts would be fundamentally pointless. Instead, success came from understanding liquidity dynamics and optimizing fills, not from trying to predict the unpredictable.
+
+These experiences taught us a lasting lesson: Before trying to solve a problem, always ask what the problem truly is. What are you being asked to optimize? What is actually under your control? And most importantly: which assumptions are being made without solid evidence?
+
+First-principles thinking — starting from what can be verified and reasoning forward — consistently opened opportunities that others overlooked. In competitive environments where thousands of participants apply standard thinking, stepping outside the assumed frame can make all the difference.
+
+2. Understand the Problem at a Deeper Level Than Anyone Else
+Questioning assumptions is only the first step. Once you let go of default ways of thinking, the next critical task is to build a deep, accurate understanding of the system you are operating in.
+
+In competitive environments, many teams move quickly from assumption to action: applying standard techniques, optimizing strategies, backtesting models. But without truly understanding how the system behaves — what drives outcomes, what is random, what is deterministic — even the best technical tools are just guesses.
+
+This principle is directly tied to questioning assumptions: after freeing yourself from false constraints, you must replace assumption with understanding. Not by theorizing endlessly, but by methodically exploring the environment until its structure becomes clear.
+
+In our experience, the most decisive advantages often came not from better algorithms, but from better models of reality.
+
+In Ready Trader Go, discovering a fundamentally different way to make money was only possible because we went far beyond surface descriptions. We studied the source code of the simulation in detail, parsed every specific rule about how the market operated, and built a precise mental model of the environment. Only once we understood exactly how orders were matched, how delays were processed, and how other teams would likely behave, could we find a strategy that outperformed traditional market making entirely.
+
+Similarly, in IMC’s Prosperity, we didn’t simply build strategies and hope they worked. Instead, we designed numerous controlled algorithm tests — not to optimize trading performance, but to test the behavior of the environment itself.
+
+Download the Medium app
+We asked:
+
+How were prices generated?
+How does order matching really work?
+Are certain bots behaving predictably?
+We built custom dashboards and analysis tools — not just for convenience, but to deepen our understanding of the underlying mechanisms. The better we understood the task, the more straightforward good strategies became.
+
+There is a qoute (we still remember from one of our professors):
+“Once you truly understand a problem, the solution becomes trivial.”
+
+In our experience, this is more than just a saying — it is consistently true. Many competitors try to skip directly to solutions. But time invested in deeply understanding the problem usually pays off many times over.
+
+In the end, real edges rarely come from being more clever. They come from seeing more clearly.
+
+3. Go the Extra Mile
+Recognizing the right principles is essential. But applying them consistently requires something just as important: effort and discipline over time.
+
+Building a deep understanding of a system — questioning assumptions, designing experiments, seeing structures others miss — does not happen by accident. It only becomes possible when you are willing to put in the time and work that most others won’t.
+
+In every competition, our preparation started weeks — sometimes months — before the official beginning. We built custom dashboards, backtesting engines, and visualization tools long before seeing the first real market data. We studied historical competitions, read through old GitHub repositories, analyzed patterns in public datasets — even when there was no guarantee that it would pay off.
+
+Sometimes the insights we prepared became critical advantages. Other times they turned out irrelevant. But the accumulated readiness meant that when new challenges arrived, we were operating from a place of much greater understanding and flexibility than teams who only started preparing once the competition was live.
+
+In environments where thousands compete, early preparation creates an edge that cannot be recovered later. Once the race has started, no amount of sprinting can fully make up for a slow start.
+
+Another essential part of going the extra mile was teamwork. Our team was built on a foundation of strong friendship and mutual respect. Working closely together — sharing ideas openly, questioning each other’s assumptions without conflict, dividing tasks intelligently — made it possible to sustain high levels of preparation and problem-solving under pressure. Good strategies often emerged not from a single insight, but from collaboration: seeing problems from multiple perspectives, refining ideas iteratively, pushing each other toward better solutions.
+
+When deadlines approached, we sometimes worked 12-hour+ days, or stayed up through the night until 7 AM, pushing to refine strategies, fix last-minute issues, and give ourselves the best possible chance. These efforts were never easy, but they were critical when it mattered most.
+
+Talent and intelligence matter. But in the end, the willingness to work harder — and to work better together — often proves decisive.
+
+Final Thoughts
+The principles we’ve described are simple:
+
+Question your assumptions.
+Understand the problem at a deeper level than anyone else.
+Go the extra mile.
+They apply naturally to competitions — where the goal is to outperform thousands of other motivated, talented participants under time pressure.
+But their relevance extends far beyond competitive environments.
+
+In fields like quantitative trading, scientific research, startup building, and high-stakes engineering, the underlying realities are similar:
+
+Assumptions are everywhere, often invisible, often wrong.
+Truly understanding complex systems requires deliberate, disciplined work.
+Success compounds from preparation, persistence, and resilience long before results are visible.
+While we cannot share concrete real-world examples, we can confidently say that these principles have proven essential well beyond competitions. In professional environments where small advantages matter enormously, the same mindset — questioning defaults, understanding deeply, working relentlessly — often marks the difference between average outcomes and exceptional ones.
+
+These are not tricks, techniques, or shortcuts. They are foundations: the ground from which all meaningful success can grow. Mastering them does not guarantee victory. But ignoring them almost certainly guarantees mediocrity.
+
+We chose to share them openly because knowing them is only the first step. Applying them — with consistency, patience, and honesty — is the real challenge. And that challenge, we believe, is worth taking on — in competitions, and far beyond.
+
+Tools
+Having the right tools prepared before the competition is critical for maximum efficiency during the competition itself. Prosperity 2’s data was publicly available, allowing teams to familiarize themselves with the data formats, set up the tutorial environment early, and test their algorithms and logging infrastructure well before the official start of Prosperity 3.
+
+Backtester
+For backtesting, we mainly relied on our own forked version of Jmerle’s open-source backtester alongside the Prosperity website’s own backtesting functionality. Each served different, specific purposes in our workflow — for a detailed explanation of how we approached backtesting, please refer to the Backtesting Section.
+
+Dashboard
+We developed our own dashboard as a preparation for Prosperity 2, and further updated and improved it before Prosperity 3 — adding features that we didn’t have time to implement during the first competition. Since this dashboard will be heavily referenced when we explain our strategies and insights across all products, we’ll first give a detailed description of it here.
+
+Prosperity — like real-world trading — puts strong emphasis on market microstructure. A proper, intuitive order book visualization tool is essential for building the deep intuition necessary to recognize and exploit profitable patterns.
+
+Unlike many standard trading dashboards, we designed ours completely from scratch, based on what was actually most useful for this particular competition. Aesthetics were never our priority — everything was optimized purely for functionality and speed during use. (Please keep that in mind — we know it’s ugly!)In the main plot, you can see price levels:
+
+Ask (sell) quotes are plotted in red.
+Bid (buy) quotes are plotted in blue.
+Markers represent trades:
+
+Squares = trades by makers.
+Triangles = trades by takers.
+Crosses = our own trades.
+Each numbered section in the dashboard corresponds to a specific functionality:
+
+Hoverable Tooltip Displays who traded, how much, and at what price at the hovered timestamp.
+
+PnL Panel Shows the profit and loss for the currently selected product.
+
+Position Panel Displays the net position for the selected product over time.
+
+Log Viewer Parses our own logger outputs into a clean, timestamp-synced view.
+Always matches the time currently hovered over in the main plot.
+
+Selection Controls Allows selecting:
+
+The log file.
+The product (e.g. Kelp).
+Specific logged indicators to overlay onto prices.
+A powerful feature here is the normalization dropdown:
+By selecting an indicator (e.g., WallMid — our proxy for the "true price"), all prices can be normalized relative to it.
+This is extremely useful for visualizing strategies like mean reversion (When having PICNIC_BASKET1 selected normalizing by the sum of its constituents perfectly demonstrates the mean reversion of the basket's premium still maintaining the orderbook plotting style).
+
+Trade Filtering and Visualization Controls what types of trades and order book elements to display:
+
+Toggle order book levels.
+Toggle all trades, specific trader groups or specific traders:
+M (maker)
+S (small taker)
+B (big taker)
+I (informed trader)
+F (our own trades)
+Set quantity filters to only show trades within a specified size range, especially helpful when trader IDs still unknown.
+Performance and Downsampling Controls Adjusts dynamic downsampling and visibility thresholds to prevent lag when visualizing large datasets.
+
+Notes:
+
+We intentionally avoided any existing known dashboard styles; instead, we focused purely on designing what helped us most during analysis or checking of our algorithm during intense rounds.
+The visualization choice (scatter plot as order book depth representation) was made based on the specific structure of Prosperity markets — where products typically have only 1–4 meaningful price levels.
+Algorithmic Challenge
+Round 1: Market Making
+Rainforest Resin
+Rainforest Resin was the simplest and most beginner-friendly product in Prosperity 3, perfectly suited to teach the fundamentals of market making. The product’s true price was permanently fixed at 10,000, meaning there were no intrinsic price movements to worry about. This setup clearly demonstrated the roles of makers and takers: takers would cross the true price by either buying above 10,000 or selling below it, while makers posted passive orders hoping to be matched. The only thing that mattered for profitability here was the distance between the trade price and the true price — commonly referred to as the "edge." In short, the further you could buy below 10,000 or sell above 10,000, the better.
+
+A key insight not just for Rainforest Resin but for all Prosperity products was understanding how the simulation handled order flow. At the start of every new timestep, the simulation first cleared all previous orders. Then, it sequentially processed new submissions: first some deep-liquidity makers, then occationally some takers, then our own bot’s actions (take or make), followed by other bots — usually more takers. This structure meant that speed and order cancellation were irrelevant: you had a full snapshot of the book and could submit any combination of passive or aggressive orders without racing against anyone. For Rainforest Resin, this confirmed that all focus should be on carefully optimizing the edge versus fill probability trade-off.
+Final Strategy
+Our final strategy for Rainforest Resin was straightforward. Each timestep, we first immediately took any favorable trades available — buying below 10,000 or selling above it. Afterward, we placed passive quotes slightly better than any existing liquidity (existing orders in orderbook): overbidding on bids and undercutting on asks while maintaining positive edge. If inventory became too skewed, we flattened it at exactly 10,000 to free up risk capacity for the next opportunities. No sophisticated logic or aggressiveness was needed due to the stable true price and the clean snapshot-based trading model.
+
+Anyone could have come up with this approach by carefully studying the competition's matching rules and observing the environment during the tutorial round. Realizing that the true price was constant, fills were processed sequentially, and that orders only lived for one timestep simplified the problem dramatically. Having a basic visualization of price levels and logging fill quality would have made it even more obvious. Rainforest Resin alone consistently contributed around 39,000 SeaShells per round to our total PnL.
+
+
+Kelp
+Kelp was very similar in nature to Rainforest Resin, with the only major difference being that its price could move slightly from one timestep to the next. Instead of a fixed true price like Rainforest Resin, Kelp's true price followed a slow random walk. However, this movement was minor enough that the basic structure of the problem remained unchanged. Buyers and sellers still interacted as takers when crossing the fair price, and makers earned profits based on how far their trades deviated from the true price at the moment of execution.
+
+The critical insight for Kelp was recognizing that, despite small movements, the future price was essentially unpredictable. Once teams realized that takers lacked predictive power and that the next true price could not be systematically forecasted, it became clear that the best available estimate for the true price was simply the current one. In fact, while there was a minor technical edge — stemming from the fact that the true price was internally a floating-point value and orders could only be posted at integer levels (creating slight mean-reversion tendencies after ticks) — this effect was too small to materially alter strategy. Just like with Rainforest Resin, the optimal approach was to treat the WallMid as the fair price and quote around it.
+Final Strategy
+Our final strategy for Kelp was nearly identical to that for Rainforest Resin. At each timestep, we first immediately took any favorable trades available relative to the current wall mid, then placed slightly improved passive orders (overbidding and undercutting) around the fair price. If inventory became too large, we neutralized it by trading at zero edge relative to the current price estimate. No major changes were needed compared to the first product.
+
+Teams that approached Kelp correctly would have first verified whether takers or the market exhibited any predictability, either through simple empirical analysis or by observing that naive strategies (like quoting around the current price) worked well. Realizing that there was no meaningful adverse selection risk meant that treating Kelp identically to Rainforest Resin was the optimal path. On average, Kelp generated around 5,000 SeaShells per round, primarily limited by the tighter spreads compared to the first product.
+
+
+Squid Ink
+Squid Ink differed from the previous two products mainly in that it had a tighter bid-ask spread relative to its average movement, combined with occasional sharp price jumps. This made pure market-making less attractive, not because of systematic losses, but because it introduced higher variance in realized PnL. In other words, fills could swing more widely in value depending on unpredictable price jumps, even if there was no predictable adverse selection in the classic sense. Officially, the product was described as mean-reverting in the short term, suggesting that mean-reversion strategies might work. However, after investigating the market dynamics more carefully, we discovered an entirely different and more reliable opportunity.
+
+Our main insight was that one of the anonymous bot traders consistently exhibited a strikingly predictable pattern: buying 15 lots at the daily low and selling 15 lots at the daily high. We observed this behavior early on, without initially knowing who the trader was. It was only in the final round — when trader IDs were temporarily visible — that we learned this trader was named Olivia. Anticipating this kind of behavior and designing logic to detect it gave us a clear edge. Without revealing our exact identification method (to avoid encouraging blind copying), the general approach involved tracking the daily running minimum and maximum. When a trade occurred at a daily extreme — and in the expected direction relative to the mid price — we flagged it as a signal and positioned accordingly. False positives were managed by monitoring for corresponding new extrema that contradicted earlier signals.
+Final Strategy
+Our final strategy for Squid Ink focused purely on following this daily-extrema trading behavior, dynamically updating our positions based on detected trades and resetting when invalidations occurred. No active market making or mean reversion trading was used for this product. The result was a low-risk, high-reliability PnL contributor that did not rely on predicting price moves directly.
+
+Anyone who carefully analyzed historical Prosperity 2 data or public write-ups — such as Stanford Cardinal’s or Jasper's — could have anticipated similar behaviors and prepared detection logic in advance. We also discovered and executed this strategy on another product in Prosperity 2 without having participated in Prosperity 1. Early identification of this behavior consistently netted us on average 8,000 SeaShells per round, providing a stable and important edge in Round 1.
+
+
+Round 2: ETF Statistical Arbitrage
+Picnic Baskets
+In Round 2, three new individual products — Croissants, Jams, and Djembes — were introduced alongside two new baskets: PICNIC_BASKET1 (6x Croissants, 3x Jams, 1x Djembes) and PICNIC_BASKET2 (4x Croissants, 2x Jams). Each basket represented a combination of different quantities of the three products, but crucially, it was not possible to directly convert baskets into their underlying constituents. This setup clearly simulated a basic ETF (Exchange-Traded Fund) structure: linked assets that normally move together, but which might temporarily deviate, creating statistical arbitrage opportunities. In quantitative trading, finding and exploiting such linkages — when the synthetic price of a basket diverges from the sum of its parts — is a classic technique.
+
+A deeper look revealed two main spread opportunities: first, trading the spread between the two baskets adjusted by Djembes (ETF1 - 1.5*ETF2 - Djembes), and second, trading each basket relative to its synthetic value based on the underlying products (ETF - Constituents). While both avenues were possible, we quickly identified that comparing baskets directly to their constituent sums was the stronger and more reliable path.
+
+Figure 4: Basket Spreads over Time
+Basket spread plot
+This plot shows the spreads (basket price minus synthetic value) for both Picnic Baskets over time, revealing short-term mean reversion patterns.
+When approaching this kind of structure, it's crucial not to blindly apply textbook strategies but to first ask a fundamental question: How could the market data have been generated? The most natural generation process seemed to be that the three constituents' prices were independently randomized, and a mean-reverting noise sequence was then added on top to produce the basket price. If that's true — and our early testing supported it — then the baskets were mean-reverting relative to their synthetic value, while the constituents themselves were not responding to the baskets. Thus, it made sense to treat baskets as drifting toward their synthetic value, not the other way around. Furthermore, while "hedging" by taking opposite positions in constituents could reduce variance, it would actually lower expected value slightly, especially when accounting for spread costs.
+
+This understanding had important implications for strategy design. Many teams might have rushed into using moving average crossovers or z-scores for trading signals — but applying such methods without a clear theoretical justification is dangerous. For instance, a moving average crossover only makes sense if you believe there is a short-term trend overlaying a longer-term mean, which was not suggested by the structure here. Similarly, using a z-score normalizes the spread by recent volatility, but unless volatility is known to vary meaningfully over time (which we did not observe here), this introduces unnecessary complexity and risk of overfitting. It's easy to fall into the trap of throwing fancy techniques at the problem after a few hours of backtesting — but if you can't explain why a strategy should work from first principles, then any "outperformance" in historical data is probably noise. From the beginning, we placed the highest value on building a deep structural understanding and keeping strategies simple, minimizing parameters whenever possible to maximize robustness.
+
+Final Strategy
+Based on that philosophy, our final strategy was built around a fixed threshold model. We entered long positions on the basket when the spread fell below a certain negative threshold, and short positions when it rose above a positive threshold. Instead of dynamically scaling signals or chasing moving averages, we relied on fixed levels tuned through light grid search, focusing on robustness rather than maximizing historical PnL. We further enhanced this base strategy by integrating an informed signal: having already detected Olivia's trading behavior on Croissants (similar to Ink Squid), we used her inferred long/short position to bias our basket spread thresholds dynamically. For example, if our base threshold was ±50, detecting Olivia as short would shift the long entry to -80 and the short entry to +20, dynamically tilting our bias in the favorable direction. This cross-product adjustment allowed us to intelligently exploit correlations between Croissants and the baskets without overcomplicating the system.
+
+Figure 5: Optimal Parameter Search Grid
+Optimal parameter grid search
+These plots show the backtested basket PnLs across different parameter combinations. The left plot corresponds to Basket 1, and the right plot to Basket 2. num_param_1 represents the base threshold values, while num_param_2 controls the informed threshold adjustments based on Olivia's position.
+During parameter selection, we always prioritized landscape stability over pure performance peaks. Rather than picking the best parameter set based on maximum backtested profit, we chose combinations that showed consistent, flat regions of good performance, reducing sensitivity to slight shifts and avoiding overfit disasters. Additionally, because we noticed that the basket prices carried a slight persistent premium (the mean of the spread was not zero), we subtracted an estimated running premium from the spread during live trading, continuously updating it to prevent bias.
+
+Also, for the final round, we were uncertain whether or not to fully hedge our basket exposure with the constituents. Recognizing that any trading strategy can be viewed as a linear combination of two other strategies — in this case, fully hedged and fully unhedged — we decided to hedge 50% of our exposure as a balanced compromise. Additionally, we adjusted our execution logic: instead of waiting for spreads to fully revert and cross opposite thresholds, we neutralized positions immediately upon spreads crossing zero (adjusted for the informed signal). This change aimed to reduce variance and lock in profits more consistently, while maintaining approximately zero expected value under the assumption that spreads did not exhibit momentum when crossing zero. It is important to note that here, "zero" still referred to the base threshold after incorporating informed adjustments.
+
+Anyone thinking carefully about the problem — starting from generation assumptions, doing proper exploratory data analysis, and resisting the temptation to blindly overfit — could have arrived at a similar approach. Concepts like synthetic replication, mean-reversion modeling (e.g., Ornstein-Uhlenbeck processes), and cross-product signal integration are core ideas in quantitative finance. With the dynamic informed adjustment based on Croissants, our strategy made about 40,000–60,000 SeaShells per round on baskets, plus another 20,000 SeaShells per round directly from trading Croissants individually.
+
+
+Round 3: Options Scalping
+Options
+In Round 3, the competition introduced a new class of assets: Volcanic Rock Vouchers — effectively call options on a new underlying product, Volcanic Rock (VR). There were five vouchers available, each with a distinct strike price — 9500, 9750, 10000, 10250, and 10500 — while the underlying Volcanic Rock itself traded around 10,000. Each voucher granted the right (but not the obligation) to buy Volcanic Rock at the specified strike at expiry. Importantly, options had limited time to live: starting with seven days until expiry in the first round, decreasing to just two days by the final round. Without basic familiarity with options theory, particularly concepts like implied volatility and option pricing models, it would have been difficult to design strong strategies for this product.
+
+IV Scalping
+Our first major insight came from following hints dropped in the competition wiki, suggesting the construction of a volatility smile: plotting implied volatility (IV) against moneyness. By fitting a parabola to the observed IVs across strikes and then detrending (subtracting the fitted curve from observed values), we could isolate IV deviations that were no longer dependent on moneyness.
+
+Figure 6a: Volatility Smile
+Volatility smile scatter plot
+This scatter plot visualizes implied volatility (vt) versus moneyness (mt) across different strikes. A fitted parabola is shown to filter out noise, producing v̂t — the "fair" implied volatility given mt. Outliers at the bottom left were disregarded, as they corresponded to historical points where extrinsic value was too low.
+Figure 6b: IV Deviations over Time
+IV deviations plot
+This plot shows the time series of implied volatility deviations (vt - v̂t) derived from Figure 6a, highlighting short-term patterns in relative option mispricing.
+To convert these into actionable trading signals, we input the volatility-smile-implied IV into a Black-Scholes model to calculate a theoretical fair price, then compared it to the actual market price to find price deviations. Plots of these price deviations — especially for the 10,000 strike call early on — revealed sharp short-term fluctuations, indicating scalping opportunities.
+
+Figure 6c: Price Deviations over Time
+Price deviations plot
+This plot shows the same implied volatility deviations from Figure 6b, but transformed into price space using the Black-Scholes model, providing a more intuitive view of relative mispricings over time.
+We initially focused on the 10,000 strike, but dynamically expanded to include other strikes as the underlying shifted and expiry approached, tracking profitability thresholds in real time to decide when to activate scalping on new options. Statistical analysis, specifically testing for 1-lag negative autocorrelation in returns, strongly supported the existence of exploitable short-term inefficiencies across several strikes, further validating this approach.
+
+Figure 7a: 10k Call Price Fluctuations
+10k call price fluctuations
+This plot shows short-term price fluctuations of the 10,000 strike call option. The orange indicator represents the theoretical call price, calculated using the implied volatility from the fitted parabola (v̂t) at the option’s current moneyness.
+Figure 7b: 10k Call Price Fluctuations (Normalized)
+Normalized 10k call price fluctuations
+This plot shows the same 10,000 strike call fluctuations as in Figure 7a, but with prices normalized by the theoretical value (orange indicator) to make deviations more stationary and visually clear.
+Gamma Scalping
+The expected value from gamma scalping was consistently positive, as the gains from underlying price movements outweighed the losses from time decay. This made buying options and rehedging the resulting deltas from gamma exposure a relatively low-risk way to generate profit. However, while the approach was stable and mostly safe, the absolute returns were limited. It was a reliable source of small gains, but ultimately, we had a higher risk appetite and wanted better returns.
+
+Mean Reversion Trading
+Simultaneously, analysis of the underlying Volcanic Rock asset suggested potential mean reversion behavior. Return distributions and price dynamics resembled Squid Ink, which was explicitly designed to mean revert in Round 1. Autocorrelation analysis of Volcanic Rock returns, compared against randomized normal samples, confirmed significant short-term negative autocorrelation at various horizons, although caution was needed given the presence of large jumps and non-normal return distributions. Given the limited historical data available (only three days), and uncertainty about future dynamics, fully committing to mean reversion was considered too risky. Instead, we implemented a lightweight mean reversion model: tracking a fast rolling Exponential Moving Average (EMA) and trading deviations from this EMA using fixed thresholds — without scaling by rolling volatility — to keep the model simple and robust.
+
+Figure 8: Autocorrelation Plot for Volcanic Rock
+Autocorrelation plot for Volcanic Rock
+Rolling autocorrelation of Volcanic Rock returns compared to autocorrelations from purely random sequences, suggesting statistically significant mean reversion behavior in the underlying.
+Final Strategy
+In the end, we deployed a hybrid strategy combining both alpha sources. Our core focus remained on IV scalping, dynamically expanding across strikes and adjusting thresholds based on evolving conditions, while simultaneously maintaining a moderate mean reversion position — both in the underlying Volcanic Rock and in the deepest in-the-money call (the highest delta option available). Importantly, this was not a delta hedge in the traditional sense: the delta exposure from scalping was relatively small, and explicit delta hedging would have been prohibitively expensive bid-ask spreads. It was rather a hedge against bad luck. Because this hybrid model was designed to minimize maximum regret across different possible market outcomes: it protected us if strong mean reversion materialized (even if other teams aggressively leveraged mean reversion delta exposure across multiple options and therefore outperforming us in a relative sense), while keeping our core reliance on the more stable, theory-supported scalping opportunities.
+
+Someone could have arrived at a similar strategy without deep prior options expertise by carefully observing the market dynamics. Even without constructing a full volatility smile, simply watching option prices — particularly the 10,000 strike — would reveal clear short-term mean-reversion patterns and negative autocorrelation in returns. On the underlying asset side, basic return autocorrelation analysis and exploratory plotting would hint at mean reversion tendencies. Thus, while a strong theoretical background was helpful, a combination of attentive observation, critical data analysis, and statistical common sense would have led to very similar conclusions.
+
+In terms of results, IV scalping contributed approximately 100,000 - 150,000 SeaShells per round, providing strong and stable profits across all rounds. Mean reversion trading was much more volatile, delivering around 100,000, -50,000, and -10,000 SeaShells across the rounds respectively. Despite the swings, our hybrid approach allowed us to achieve consistently positive net results while keeping downside risks manageable.
+
+Note: After the fourth round, where the mean reversion strategy resulted in a loss of approximately 50,000 SeaShells, we reassessed its validity. Although we no longer found strong empirical evidence to justify continuing with mean reversion purely on standalone expected value grounds, we knew that several top teams were actively only trading mean reversion strategies. So we figured, if they wouldn't find the IV scalping strategy, they might just accept the coinflip and go all in mean reversion because otherwise they would surely get overtaken by everyone. Facing a 200,000 SeaShell lead at that point, we made a calculated decision to maintain some mean reversion exposure — not because we believed it was necessarily positive EV anymore, but to hedge relatively against the teams still pursuing that angle. We estimated the 95% Value at Risk (VaR) of the mean reversion component to be around 50,000 SeaShells — only about 25% of our lead — leaving us with sufficient margin even if the strategy failed again. Under our assumptions, keeping this balanced exposure maximized our likelihood of securing first place by minimizing relative downside risk while preserving our core scalping profits. This turned out to be the right decision. Although, in the last round some random team very unnaturally jumped from 100+ rank to 1st place, we could keep a healthy distance to all teams that were previously close behind us.
+
+
+Round 4: Location Arbitrage
+Macarons
+In Round 4, Magnificent Macarons was introduced. Their fictional value was described as depending on external factors like hours of sunlight, sugar prices, shipping costs, tariffs, and storage capacity. Macarons could be traded on the local island exchange via a standard order book, or externally at fixed bid and ask prices, adjusted for im-/export and transportation fees. The position limit for Macarons was 75 units, with a conversion limit of 10 units per timestep. This setup opened up both straightforward arbitrage opportunities and, for those who studied the environment carefully, access to a much deeper hidden edge.
+
+At first glance, the standard arbitrage logic applied: whenever the local bid exceeded the external ask (after fees), or the local ask was lower than the external bid, profitable conversions were possible. However, there was a critical hidden detail: a taker bot existed that aggressively filled orders offered at attractive prices relative to a hidden "fair value." Through experimentation, we discovered that offers priced at about int(externalBid + 0.5) would often get filled, even when no visible orderbook participants were present. This taker bot executed approximately 60% of eligible trades, meaning that — in expectation — you could sell locally for a price about 3 SeaShells higher than the naive local best bid. Over the course of 10,000 timesteps with a 10-unit conversion limit, this small price improvement could theoretically yield up to 300,000 SeaShells. Of course, those conditions were not always present and realistic optimal profits were around 160,000 and 130,000 SeaShells across the two rounds. Still, the magnitude of this hidden edge made Macarons a very lucrative product of the competition.
+
+Figure 9a: Macarons Microstructure
+Macarons microstructure plot
+This plot shows approximately 60% of fills occurring at prices better than the local best bid. The orange indicator represents the external ask after costs (i.e., the conversion price for negative inventory). It also illustrates that straightforward local best bid to external ask arbitrage was not profitable during this period.
+Figure 9b: Macarons Microstructure (Normalized)
+Normalized Macarons microstructure plot
+This plot shows the same data as Figure 9a, but normalized by the external ask after costs (orange indicator). It clearly demonstrates the achievable price improvement versus the local best bid: while the local best bid was about -1 SeaShell unprofitable in this snippet, fills often occurred at +2 SeaShell profitable levels.
+Machine Learning Approach
+Last year, there was a similar round involving a sunlight and humidity index. As far as we know, nobody was able to extract any useful information from these indices, and they were largely considered a false lead. This year, we expected the same outcome, but we still felt it was worth checking, just in case there was something hidden there (especially since an admin in the Discord channel had hinted at it). Our model was a logistic regression, with a target of a trade being profitable in x timestamps.
+
+Features:
+Feature	Coefficient	P-value	Explanation
+sunlight_diff	-2.0517	0.0000	Change in sunlight over the last 5 timestamps
+sunlight_critical	0.4737	0.0000	Binary, if sunlight is below a threshold, set to 45
+sunlight_critical_time	-0.0014	0.0096	Binary, if sunlight has been critical for more than 30 timestamps
+sunlight_diff_critical	-0.0020	0.0000	Change in sunlight if sunlight has been critical as defined in sunlight_critical_time
+sunlight_critical_time_2	0.0001	0.0020	sunlight_critical_time^1.3
+All variables produced highly significant p-values and plausible coefficients. These are only a subset of the tested features, and had we employed this strategy, the features would have faced greater scrutiny. We also tested having a lagged price as a feature, which introduced trading small spikes and mean reversion to our model, but decided against it as this was highly volatile.
+
+We then do the following based on the ouput of the logisitc regession y:
+
+If ( y = 0 ): Sell
+If ( y = 1 ): Buy
+If ( y ) is between 0.49 and 0.51: Hold
+The thresholds of 0.49 and 0.51 were set through testing.
+
+Figure 10: Logistic Regression Trades
+Logistic Regression Trades
+This approach generated solid historic returns of ~25k per day. However, this approach had multiple issues:
+
+Although we employed train-test splits, we lacked confidence in the generalization of the model.
+Implementation challenges arose, particularly as longer lags required storing more past data, which significantly slowed down the trader. The serialization of trading data took considerable time, and correctly implementing the logistic regression model introduced numerous potential sources of error.
+Compatibility with export/import arbitrage posed a problem. Since positions can only be converted by reducing them, when the model indicates a long position and we wish to import, we first need to sell our entire inventory plus 10 units.
+Final Strategy
+Our final strategy focused on reliably exploiting this hidden arbitrage. Each timestep, we placed limit sell orders for Macarons at precisely int(externalBid + 0.5), the maximum price that could still trigger fills from the taker bot. We quoted only 10 units per timestep (the conversion limit), which meant we captured approximately 60% of the theoretical maximum profits, in line with the taker's acceptance probability. In hindsight, quoting larger sizes (e.g., 20–30 units) would have allowed us to profitably convert surplus inventory even on non-fills, squeezing out closer to full optimal performance. Nevertheless, even with conservative sizing, this strategy provided consistent, high-value returns with minimal risk.
+
+Teams who prepared carefully had a clear advantage this round. Similar hidden taker behavior had already appeared in Orchids during Prosperity 2, and public write-ups from top teams like Jasper and Linear Utility had discussed included it already. Additionally, even without past experience, attentive teams could have detected the pattern by analyzing historical data: best asks occasionally priced close to best bid consistently getting filled was a clear signal. Moreover, similar smart-taker behavior had appeared in assets like Rainforest Resin, providing further hints. Thus, strong preparation, deep intuition about the Prosperity simulation, and diligent empirical observation were all key factors in unlocking the full potential of Macarons. Although, we only made about 80,000 - 100,000 instead of theoretical optimum of 130,000 and 160,000 those who recognized and optimally exploited the hidden taker bot captured some of the highest single-product profits available in the entire competition.
+
+
+Round 5: Trader IDs
+In Round 5, no new products were introduced. The main change was that historical trader IDs were made public, allowing teams to directly identify which trades were executed by specific bots. For us, this did not fundamentally alter our strategies, as we had already identified Olivia’s behavior early in the competition. However, we took this opportunity to update our detection logic: instead of inferring Olivia’s trades indirectly by tracking running minimums and maximums, we now simply checked the trader ID directly. This adjustment helped eliminate false positives, reduced the risk of missing genuine Olivia trades, and saved a few hundred SeaShells over the course of the round. As with every previous round, we also re-optimized all relevant parameters based on the latest available data to ensure robustness going into the final evaluation. This was the last round, and we had a sizeable lead to place 2 (~190k), so we decided to play it save, incase ETF spreads don't converge, by half-hedging the baskets. We also limited our mean reversion strategy to minimze risk.
+
+
+Conclusion
+Throughout the entire competition, we managed to consistently stay at the very top of the leaderboard, finishing first place in every round except the final one. In the last round, the team that ultimately secured first place posted a particularly extraordinary result: a PnL of approximately 850,000 SeaShells, compared to the 200,000–400,000 range that was typical among the other top competitors. Meanwhile, they had achieved essentially zero PnL in Round 4, suggesting a highly volatile performance profile. While we cannot fully explain the divergence without access to their strategies, such a sharp swing indicates that some amount of luck could have been involved. Although it was somewhat unfortunate to lose first place at the very end after leading consistently, we fully accept that in any probabilistic environment, especially competitions with partially stochastic elements, some degree of randomness is inevitable.
+
+Reflecting on our own journey, we attribute our success to a few core principles that were consistently applied across all rounds. Most importantly, we placed enormous emphasis on deep structural understanding of each product and market environment. Weeks of careful preparation before the competition allowed us to build strong intuition for market microstructure, option pricing behaviors, and statistical pitfalls that many teams might have overlooked. Rather than relying on blind optimization or overly complex machine learning models, we focused on simple, robust strategies, critically questioning the validity of every signal and making sure we understood why an edge should exist before committing to it. Throughout the competition, we maintained a disciplined skepticism toward strategies that appeared to work "in backtest" but lacked theoretical or empirical justification.
+
+Ultimately, we are proud of how we approached the challenge: balancing rigor, adaptability, and humility throughout. We believe that the methodology and principles we applied offer serve as a strong foundation for eventual future competitions and real-world trading alike.
+
+We genuinely hope that teams of all experience levels could learn something valuable from this algorithmic write-up — whether you're preparing for a future Prosperity competition or simply looking to deepen your understanding of algorithmic trading. Our goal was not just to present strategies, but to share the full depth of our thinking: how we approached each problem, how anyone could have discovered the same insights, and the critical reasoning behind every decision. We tried to explain everything we knew as transparently as possible, in the hope that it can serve both as a strong starting point for new participants and as a thoughtful reference for anyone aiming to push their skills further next year.
+
+PS: How does it feel to get smoked by some business undergrads? 😜
+
+
+Manual Challenge
+Our approach to manual trading was more about playing it safe, rather than taking risks. We knew from Prosperity2 that the manual challenges would involve optimization problems, like Currency Arbitrage, but also questions involving game theory, where it would be almost impossible to pick the best options without being very lucky.
+
+Round 1: FX Arbitrage
+Round 1 involved simple Currency Arbitrage. For a given conversion matrix, find 5 trades to make the most money.
+
+Snowballs	Pizza	Silicon Nuggets	SeaShells
+Snowballs	1.00	1.45	0.52	0.72
+Pizza	0.70	1.00	0.31	0.48
+Silicon Nuggets	1.95	3.10	1.00	1.49
+SeaShells	1.34	1.98	0.64	1.00
+We solved this by iterating over all possible trades, and picking the best option, which ended up being:
+
+SeaShells -> Snowballs
+Snowballs -> Silicon Nuggets
+Silicon Nuggets -> Pizza
+Pizza -> Snowballs
+Snowballs -> SeaShells
+
+This led to a profit of about 8.9%
+
+Round 2: Containers
+Round 2 was the first round that involved game theory, where you had to pick one or two out of ten squares, and your profit was inversely proportional to the percentage of other participants who picked the same square. Additionally, there was a set number of island inhabitants also choosing containers. Each container contained 10,000 SeaShells, multiplied by a known factor between 10 and 90, which was then split between the teams and the inhabitants, leading to the following payoff formula:
+
+Π
+(
+f
+)
+=
+M
+f
+×
+10000
+(
+p
+f
+×
+100
+)
++
+I
+f
+
+With 
+M
+f
+ being the multiplier, 
+p
+f
+ the percentage of teams, and 
+I
+f
+ the number of inhabitants for any field 
+f
+. We tried to model other teams’ choices by looking at a similar challenge from Prosperity 2. This involved sorting fields by profitability for 
+p
+f
+=
+0
+. It was assumed that regions with comparable profitability would display similar trends in over- or under-allocation. Applying this predicted the following percentages (by multiplier):
+
+Multiplier	Predicted %	Actual %	Rank Predicted	Rank Actual
+37	4.95%	5.12%	1	3
+10	1.31%	0.94%	2	2
+50	8.11%	8.52%	3	5
+We avoided 37 to steer clear of the bias people have toward the number 37. 10 seemed too risky, as even a slight overallocation would lead to a much lower profit. We therefore settled for 50, which made about ~40k. In hindsight, this lost us 4k–10k compared to 10 or 37, or about 15k compared to the best field. There was the option to pick a second field for 50k, but that wasn’t an option for us, as our prediction only had two fields that made slightly more than 50k. Assuming everybody only picked one field, the average profit was around ~34k, so we still made a reasonable amount more than the average.
+
+Round 3: Reserve Price
+Round 3 was a combination of optimization and game theory. The first part was pure optimization. There was a uniform group of sellers who would sell their goods for any price higher than their reserve price. The distribution of reserve prices was uniform from 160 to 200. You could set one price, at which sellers would trade if it was higher than their reserve price. The goods bought could be resold for 320 after the challenge, so the profit was as follows:
+
+Π
+(
+p
+)
+=
+N
+⋅
+(
+p
+−
+160
+40
+)
+⋅
+(
+320
+−
+p
+)
+
+
+With 
+p
+ being you chosen price, and 
+N
+ being the number of sellers. The optimum of this function is 
+p
+=
+200
+. The game theory part, however, was more complicated. The setup was similar, but with reserve prices ranging from 250 to 320. However, if your bid was less than the average bid, your profit would be scaled by:
+
+S
+(
+p
+,
+μ
+)
+=
+(
+320
+−
+μ
+320
+−
+p
+)
+3
+
+
+where p is your bid, and µ is the average bid. This led to the following payoff function:
+
+Π
+(
+p
+,
+μ
+)
+=
+N
+⋅
+(
+p
+−
+250
+70
+)
+⋅
+(
+320
+−
+p
+)
+⋅
+min
+(
+(
+320
+−
+μ
+320
+−
+p
+)
+3
+,
+1
+)
+
+
+The optimum of this function occurs at the average, but the derivative shows that being below the average results in a greater loss than being above it. We incorporated this information into our estimate of what other teams would bid, leading us to bid 303. However, it turned out that most teams did not bid more than the optimum without considering game theory (284), so the average ended up being 287 — way lower than our bid. Luckily, the second part had a lower possible profit compared to the first round, so we only lost about 5.5% compared to the optimal solution.
+
+Round 4: Suitcases
+Round 4 was identical to the challenge in Round 2, just with a different number of fields and a second choice available for 25k instead of 50k. We employed the same strategy, which led to the following table:
+
+Multiplier	Predicted %	Actual %	Rank Predicted	Rank Actual
+60	4.25%	6.72%	1	8
+37	2.09%	4.79%	2	14
+50	2.98%	3.92%	3	6
+Round 2 had shown that the “bias” for the number 37 did not materialize, which led us to choose 37 and 50. However, in this round, our modeling was way off compared to the actual numbers. We made around ~85k, whereas the optimal two options would have made almost 130k. Assuming two picks per team, the average profit was roughly 82k, so we only had a very slight edge over the average.
+
+Round 5: News Trading
+Round 5 was, again, very similar to Round 5 of Prosperity 1 & 2. We compiled a table of products and estimated reasonable movements, while looking at the magnitude of moves from the previous iterations. Like all manual rounds, we tried to hedge our risk and reduced position sizes compared to the optimal allocations based on our estimates of moves.
+
+Product	Expected Movement	Actual Movement	Profit	Optimal Profit
+Haystacks	12%	-0.48%	-3240	0
+Ranch Sauce	10%	-0.72%	-2208	0
+Cacti Needle	-30%	-41.20%	32160	35360
+Solar Panels	-30%	-8.90%	-6600	1640
+Red Flags	5%	50.90%	9700	53970
+VR Monocle	30%	22.40%	9600	10440
+Quantum Coffee	-50%	-66.79%	87339	92932
+Moonshine	0%	3.00%	0	180
+Striped shirts	0%	0.21%	0	0
+∑			126751	194522
+This round involved multiple blunders. First, we had a debate about Ranch Sauce and compromised on 10%; Ranch Sauce ended up remaining unchanged. Haystacks were also overestimated, as there was a similar product in Prosperity 2 where “Sleddit” found new hope in a product, which then went up roughly 12%. Same story for Solar Panels, as they were similar to fishing rods in Prosperity 1. We massively underestimated Red Flags because we wanted to hedge against the possibility that the reserved flags combined with the promise of reprinting would be enough to calm the market down.
+
+
+Frequently Asked Questions
+What is the Wall Mid and why did we use it?
+The Wall Mid is our best approximation of the true underlying price of a product during trading. During testing on the official Prosperity website, it was possible to infer the true underlying price indirectly: by buying or selling a single lot and observing the resulting PnL, which was calculated based on the true internal price rather than market quotes. Through careful analysis, we found that the most reliable way to estimate this true price was by identifying the bid wall and ask wall — price levels in the orderbook that consistently showed deep liquidity. These "walls" typically corresponded to quotes from designated market makers who appeared to know the true price and simply quoted rounded versions of it (e.g., ±2 ticks around the true value). By averaging the prices of the bid wall and ask wall, we obtained a Wall Mid value that was much more stable and accurate than using the raw mid price, which could be heavily distorted by overbidding or undercutting. Thus, the Wall Mid provided a robust and low-noise estimate of the fair underlying value, crucial for designing effective strategies.
+
+How to properly backtest?
+A simple rule of thumb we followed: if a strategy mainly depended on bot interactions, we backtested using the official Prosperity website; if a strategy mainly involved taking or simple quoting logic, we used Jasper’s open-source backtester.
+
+For fast, early-stage prototyping, we often performed quick, vectorized backtests inside Jupyter notebooks. This allowed us to rapidly explore ideas before investing time into full-scale simulation.
+
+Jasper’s backtester is very accurate and highly flexible — it allowed us to test across full historical data and easily modify the code to accept additional parameters (which was excellent for systematic optimization). However, it cannot fully replicate the subtle nuances of bot behavior, simply because that behavior was not fully observable or modeled. For example, the backtester could not correctly simulate the taker bot behavior for Macarons or properly handle conversions; it also could not accurately model potential fill probabilities after inserting liquidity for assets like Rainforest Resin and Kelp.
+
+Thus, our guideline was:
+
+For most products (especially beyond Round 1), rely primarily on the backtester.
+For products where detailed bot interaction mattered (Rainforest Resin, Kelp, Macarons), validate key behaviors using website-based tests.
+Critically, we strongly advise: never optimize purely for website score. Doing so is extremely prone to overfitting on simulation-specific randomness rather than building strategies that generalize.
+
+How to build the skills and knowledge needed to compete at a high level?
+Competing at the top level in algorithmic trading competitions requires building a very strong and well-rounded skill set — much broader than just knowing how to code. Here’s what worked for us:
+
+Structured learning: Start with a solid technical foundation. Years ago, we took structured courses like the Udemy course on Algorithmic Trading (very often on sale for like 10 bucks or so) to understand the basics of trading, order books, strategy design etc.
+
+YouTube and online resources: We supplemented formal education with countless hours of watching educational YouTube channels (e.g., QuantPy, Khan Academy for Statistics, QuantConnect tutorials) to stay exposed to new ideas and real-world examples.
+
+Learning by doing: Nothing replaces hands-on experience. We regularly participated in competitions like Prosperity, where you are forced to implement, backtest, and optimize under real constraints.
+
+Personal projects: Independent projects helped a lot. We recommend picking a published financial paper (for example, on statistical arbitrage or market making), trying to implement the strategy yourself, and backtesting it on real historical data. For advanced learners, attempting to implement cutting-edge machine learning models (such as time series transformers for financial prediction) is a fantastic way to bridge pure coding with applied quantitative research.
+
+Critical thinking: Always think critically about the "why" behind strategies — don’t just blindly optimize backtests. Understand market microstructure, incentive structures, and trading behaviors at a deep level.
+
+In short: Master the technical basics first, but real expertise is built by iterating, experimenting, and failing forward in personal projects and competitive environments.
+
+How to break into quant trading?
+Breaking into top-tier quant trading actually requires not too much of technical strength but rather preparation and strategic positioning:
+
+Strong academic background: Attending a prestigious university (especially in fields like mathematics, statistics, computer science, physics, or engineering) definitely helps open doors. It’s not strictly mandatory — but for highly competitive firms, it strongly increases your chances.
+
+Technical and probability skills: Firms test heavily on mental math, probability theory, brain teasers, and game theory during interviews. Sites like tradinginterview.com are excellent resources to practice typical quant interview questions.
+
+Coding ability: Even "trading" roles often involve coding screens now. You don’t need to be a LeetCode grandmaster, but you should be comfortable with Python (and optionally C++/Java for dev roles).
+
+Personal projects and competitions: Having actual projects (like your own trading models or backtesters) or strong placements in competitions (like Prosperity) is a massive differentiator in your resume.
+
+Communication and intuition: Beyond pure technical skills, firms want people who can explain intuition clearly, think about risk vs. reward critically, and adapt fast under uncertainty. Practicing mock interviews and explaining your trading strategies or competition approaches out loud is a huge help.
+
+In short: Build strong math and coding foundations, practise probability/game theory interviews extensively, and prove your ability to think like a trader through real-world experience.
+
+Is the Discord Channel useful?
+Yes, definitely. Being active on the official competition Discord server can be extremely valuable: tips, hints, and clarifications from moderators are often shared early, and it’s a great place to ask technical questions or discuss strategies with other participants. Staying on top of Discord discussions is crucial, as important insights — or even leaks of good strategies — sometimes happen informally in chat.
+
+However, caution is essential. Discord is also full of noise: there are many inexperienced participants, as well as occasional scammers, so never share sensitive details about your strategy with random people. Additionally, a form of psychological warfare is common: participants might post seemingly unbelievable backtesting results, either because they have massively overfitted and will likely collapse in live rounds, or because they intentionally fake screenshots to create panic among competitors. It’s important to stay calm, stick to your own validation methods, and avoid the trap of overfitting or changing your approach impulsively just because of noise on Discord.
+
+In short: Use Discord strategically to stay informed — but maintain a cool head and focus on your own robust development process.
+
+What was going on with all the hardcoding in the first two rounds?
+In the first two rounds, a specific issue existed related to bot behavior replication from earlier competitions. While the underlying true prices were regenerated for Prosperity 3 (unlike Prosperity 2, where some price paths were reused, see LinearUtility's Writeup), the bot behavior itself was still almost identical to previous years — matching with over 95% accuracy in most cases.
+
+This created an unintended loophole: teams could "hardcode" their trading decisions based on historical bot actions. For example, in Rainforest Resin (similar to last year's Amethysts), if a bot historically submitted a market order at timestep 600, teams could hardcode their own algorithm to preemptively take all ask liquidity just before that bot arrived — virtually guaranteeing fills at better prices.
+
+We discovered this early and initially implemented a frontrunning strategy ourselves, given that a similar situation had gone unaddressed in Prosperity 2 (see LinearUtility's Writeup).
+However, unlike some teams, we also built a fallback system: if the bots' behavior changed or was fixed mid-competition, our algorithm would automatically revert to a normal, non-hardcoded trading strategy. This safety measure came at a cost — the fallback logic introduced exploration costs and slight performance degradation compared to default algorithm.
+
+After Round 2, we reported the hardcoding exploit to IMC directly. In response, IMC officially fixed the bot behavior to prevent hardcoding from Round 3 onward and banned such tactics for the rest of the competition. Additionally, they allowed teams to resubmit corrected algorithms and reran the first two rounds to ensure fairness. Interestingly, one of the teams that ultimately overtook us in the final standings had also been relying on hardcoding early on — and without the resubmission opportunity we advocated for, they might not have been able to catch us by the end.
+
+While this turned out to be a funny and slightly ironic anecdote, we're proud that we pushed for a fairer competition, even at a potential cost to ourselves.
+
+What else did we try?
+At one point, we attempted a more unconventional idea: we extracted the first 100 or so returns from a true PnL series and tried to reverse-engineer a possible random seed that might have been used to generate it. Assuming the underlying data could have been produced by a pseudorandom number generator (with minor transformations), we compared the observed returns to randomly generated sequences from all 4 billion possible seeds in NumPy, running the search on a Raspberry Pi for about 24 hours. Unfortunately, no matching seed was found — but it was a fun experiment nonetheless!
+
+linear utility 📈
+All Contributors
+
+This repository contains research and algorithms for our team, Linear Utility, in IMC Prosperity 2024. We placed 2nd globally, with an overall score of 3,501,647 seashells, and took home $10,000 in prize money.
+
+the team ✨
+Jerry Chang
+Jerry Chang
+🔗 LinkedIn
+🔬 💻	Eric Liu
+Eric Liu
+🔗 LinkedIn
+🔬 💻	Sreekar Bathula
+Sreekar Bathula
+🔗 LinkedIn
+💻	liu-nathan
+liu-nathan
+🔗 LinkedIn
+🔬
+the competition 🏆
+IMC Prosperity 2024 was an algorithmic trading competition that lasted over 15 days, with over 9000 teams participating globally. In the challenge, we were tasked with algorithmically trading various products, such as amethysts, starfruit, orchids, coconuts, and more, with the goal of maximizing seashells: the underlying currency of our island. We started trading amethysts and starfruit in round 1, and with each subsequent round, more products were added. At the end of each round, our trading algorithm was evaluated against bot participants in the marketplace, whose behavior we could try and predict through historical data. The PNL from this independent evaluation would then be compared against all other teams.
+
+In addition to the main algorithmic trading focus, the competition also consisted of manual trading challenges in each round. The focus of these varied widely, and in the end, manual trading accounted for just a small fraction of our PNL.
+
+For documentation on the algorithmic trading environment, and more context about the competition, feel free to consult the Prosperity 2 Wiki.
+
+organization 📂
+This repository contains all of our code–including internal tools, research notebooks, raw data and backtesting logs, and all versions of our algorithmic trader. The repository is organized by round. Our backtester mostly remained unchanged from round 1, but we simply copied its files over to each subsequent round, so you'll find a version of that in each folder. Within each round, you can locate the algorithmic trading code we used in our final submission by looking for the latest version–for example, for round 1, we used round_1_v6.py for our final submission. Our visualization dashboard is located in the dashboard folder.
+
+tools 🛠️
+Instead of relying heavily on open-source tools, which many successful teams did, we decided instead to build our tools in-house. This gave us the ability to tailor our tools heavily to our own needs. We built two main tools: a backtester and a visualization dashboard.
+
+backtester 🔙
+We realized we needed a comprehensive backtesting environment very early on. Our backtester was built to take in historical data and a trading algorithm. With the historical data, it would construct all the necessary information (replicating the actual trading environment perfectly) that our trading algorithm needed, input it into our trading algorithm, and receive the orders that our algorithm would send. Then, it would match those orders to the orderbook to generate trades. In order to simulate market making, we would also look at trades between bots at each iteration. If there was a trade between bots at a price worse than our own quotes, we'd attribute the trade to ourselves. After running, our backtester would create a log file in the exact same format as the Prosperity website.
+
+Because we often found ourselves backtesting over various parameters to find the best combination, we also modified our trader class to optionally take in trading parameters as a dictionary upon instantiation. This allowed us to gridsearch over all possible parameters in backtesting, allowing us to quickly optimize our ideas.
+
+dashboard 💨
+The dashboard we developed helped us a lot during the early rounds in pnl generation, allowing us to develop new alpha and also optimize our alphas by finding desirable trades our algorithm didn't do or undesirable trades that our algorithm did. One extremely helpful feature we developed was a syncing functionality, where clicking on a graph (or entering a specific timestamp manually) would synchronize all visualizations to that timestamp, allowing us to explore local anomalies in depth.
+
+332262673-fb1ab2d8-72a6-4d95-bbaa-ab15cd578a8d
+
+we used to have actual section headers, but at some point we (Jerry and Eric) got hungry and started editing them
+
+round 1️⃣
+In round 1, we had access to two symbols to trade: amethysts and starfruit.
+
+amethysts 🔮
+Amethysts were fairly simple, as the fair price clearly never deviated from 10,000. As such, we wrote our algorithm to trade against bids above 10,000 and asks below 10,000. Besides taking orders, our algorithm also would market-make, placing bids and asks below and above 10,000, respectively, with a certain edge. Using our backtester, we gridsearched over several different values to find the most profitable edge to request. This worked well, getting us about 16k seashells over backtests
+
+However, through looking at backtest logs in our dashapp, we discovered that many profitable trades were prevented by our position limits, as we were unable to long or short more than 20 amethysts (and starfruit) at any given moment. To fix this issue, we implemented a strategy to clear our position–our algorithm would do 0 ev trades, if available, just to get our position closer to 0, so that we'd be able to do more positive ev trades later on. This strategy bumped our pnl up by about 3%.
+
+starfruit ⭐
+Finding a good fair price for starfruit was tougher, as its price wasn't fixed–it would slowly randomwalk around. Nonetheless, we observed that the price was relatively stable locally. So we created a fair using a rolling average of the mid price over the last n timestamps, where n was a parameter which we could optimize over in backtests1. Market-making, taking, and clearing (the same strategies we did with amethysts) worked quite well around this fair value.
+
+However, using the mid price–even in averaging over it–didn't seem to be the best, as the mid price was noisy from market participants continually putting orders past mid (orders that we thought were good to fair and therefore ones that we wanted to trade against). Looking at the orderbook, we found out that, at all times, there was a market making bot quoting relatively large sizes on both sides, at prices that were unaffected by smaller participants2. Using this market maker's mid price as a fair turned out to be much less noisy and generated more pnl in backtests.
+
+Screenshot 2024-05-20 at 11 54 46 PM
+histograms of volumes on the first and second level of the bid side
+
+Surprisingly, when we tested our algorithm on the website, we figured out that the website was marking our pnl to the market maker's mid instead of the actual mid price. We were able to verify this by backtesting a trading algorithm that bought 1 starfruit in the first timestamp and simply held it to the end–our pnl graph marked to market maker mid in our own backtesting environment exactly replicated the pnl graph on the website. This boosted our confidence in using the market maker mid as fair, as we realized that we'd just captured the true internal fair of the game. Besides this, some research on the fair price showed that starfruit was very slightly mean reverting3, and the rest was very similar to amethysts, where we took orders and quoted orders with a certain edge, optimizing all parameters in our internal backtester with a grid search.
+
+After round 1, our team was ranked #3 in the world overall. We had an algo trading profit of 34,498 seashells–just 86 seashells behind first place.
+
+round 2️⃣
+orchids 🥀
+Orchids were introduced in round 2, as well as a bunch of data on sunlight, humidity, import/export tariffs, and shipping costs. The premise was that orchids were grown on a separate island4, and had to be imported–subject to import tariffs and shipping costs, and that they would degrade with suboptimal levels of sunlight and humidity. We were able to trade orchids both in a market on our own island, as well as through importing them from the South archipelago. With this, we had two initial approaches. The obvious approach, to us, was to look for alpha in all the data available, investigating if the price of orchids could be predicted using sunlight, humidity, etc. The other approach involved understanding exactly how the mechanisms for trading orchids worked, as the documentation was fairly unclear. Thus, we split up: Eric looked for alpha in the historical data while Jerry worked on understanding the actual trading environment.
+
+Finding tradable correlations in the historical data was tougher than we initially thought. Some things that we tried were5:
+
+Just trying to find correlations to orchids returns from returns in sunlight, humidity, tarriffs, costs. Initial results from this seemed interesting–but the correlations we found here were likely spurious.
+Linear regressions from returns in sunlight, humidity, etc., to returns in orchids. We tried varying timeframes–first predicting orchids returns in the same timeframe as the returns in the predictors, and then predicting using lagged returns–building models that predicted future orchids returns over some timeframe using past returns in each of the predictors.
+Feature engineering with the various features given and performing the previous two steps again with the newly constructed features
+All of these failed to leave us with a convincing model, leading us to believe that the data given was a bit of a distraction6.
+
+Meanwhile, Jerry was having much better luck. In experimenting around with the trading environment, we realized that there was a massive taker in the local orchids market. Sell orders–and just sell orders–just a bit above the best bids would be instantly taken for full size. This, combined with low implied ask prices from the foreign market, meant that we could simply put large sell orders locally and simultaneously buy from the south archipelago for an arbitrage. As a first pass, our algorithm running this strategy made 60k seashells over over a fifth of a day. From here, some quick further optimization brought our website test pnl to just over 100k seashells, giving us a projected profit of 500k over a full day.
+
+While we figured this out independently, someone in the discord leaked this same strategy–which was quite unfortunate from our standpoint, as we knew that many teams would be able to implement the exact same thing and get the same pnl as us. With some noise from slight differences in implementation, we knew that we very well could end up dropping many places, if other teams with the same strategy simply got a bit luckier. So, we spent lots of time desperately searching for any further optimization on the arbitrage. We tested out different prices for sell orders in the local market, and found that using a price of foreign ask price - 2 worked best. However, with this fixed level for our sell orders, we worried about changes in the market preventing this level from being consistently filled. As such, we came up with an "adaptive edge" algorithm, which looked at how much volume we got at each iteration (with the maximum, nominal volume being 100 lots). If the average volume we received was below some threshold, we'd start moving our sell order level around, automatically searching for a new level to maximize profits.
+
+Even with these optimizations, we still were beat out by the surge of teams who also found the arbitrage. We dropped all the way to 17th place, with a profit of 573,000 seashells from algo trading. We were within 20k of the second place team, and 100k away from the first place team, Puerto Vallarta, who seemed to have figured something out this round that no other teams could find.
+
+round 3️⃣
+Gift baskets 🧺, chocolate 🍫, roses 🌹, and strawberries 🍓 were introduced in round 3, where a gift basket consisted of 4 chocolate bars, 6 strawberries, and a single rose. This round, we mainly traded spreads, which we defined as `basket - synthetic`, with `synthetic` being the sum of the price of all products in a basket.
+spread 🧈
+In this round, we quickly converged on two hypotheses. The first hypothesis was that the synthetic would be leading baskets or vice versa, where changes in the price of one would lead to later changes in the price of the other. Our second hypothesis was that the spread might simply just be mean reverting. We observed that the price of the spread–which theoretically should be 0–hovered around some fixed value, which we could trade around. We looked into leading/lagging relationships between the synthetic and the basket, but this wasn't very fruitful, so we then investigated the spread price.
+
+newplot (1)
+
+Looking at the spread, we found that the price oscillated around ~370 across all three days of our historical data. Thus, we could profitably trade a mean-reverting strategy, buying spreads (going long baskets and short synthetic) when the spread price was below average, and selling spreads when the price was above. We tried various different ways to parameterize this trade. Due to our position limits, which were relatively small (about 2x the volume on the book at any instant), and the relatively small number of mean-reverting trading opportunities, we realized that timing the trade correctly was critical, and could result in a large amount of additional pnl.
+
+We tried various approaches in parameterizing this trade. A simple, first-pass strategy was just to set hardcoded prices at which to trade–for example, trading only when the spread deviated from the average value by a certain amount. We backtested to optimize these hardcoded thresholds, and our best parameters netted us ~120k in projected pnl7. However, with this strategy, we noticed that we could lose out on a lot of pnl if the spread price reverted before touching our threshold. To remedy this, we could set our thresholds closer, but then we'd also lose pnl from trading before the spread price reached a local max/min.
+
+Therefore, we developed a more adaptive algorithm for spreads. We traded on a modified z-score, using a hardcoded mean and a rolling window standard deviation, with the window set relatively small. The idea behind this was that there should be a fundamental reason behind the mean of spread (think the price of the basket itself), but the volatility each day would be less predictable. Then, we thresholded the z-score, selling spreads when our z-score went above a certain value and buying when the z-score dropped below. By using a small window for our rolling standard deviation, we'd see our z-score spike when the standard deviation drastically dropped–and this would often happen right as the price started reverting, allowing us to trade closer to local minima/maxima. This idea bumped our backtest pnl up to ~135k.
+
+newplot (2)
+
+a plot of spread prices and our modified z-score, as well as z-score thresholds (in green) to trade at
+
+After results from this round were released, we found that our actual pnl had a significant amount of slippage compared to our backtests–we made only 111k seashells from our algo. Nevertheless, we got a bit lucky–all the teams ahead of us in this round seemed to overfit significantly more, as we were ranked #2 overall.
+
+round 4️⃣
+coconuts/coconut coupon 🥥
+Coconuts and coconut coupons were introduced in round 4. Coconut coupons were the 10,000 strike call option on coconuts, with a time to expiry of 250 days. The price of coconuts hovered around 10,000, so this option was near-the-money.
+
+This round was fairly simple. Using Black-Scholes, we calculated the implied volatility of the option, and once we plotted this out, it became clear that the implied vol oscillated around a value of ~16%. We implemented a mean reverting strategy similar to round 3, and calculated the delta of the coconut coupons at each time in order to hedge with coconuts and gain pure exposure to vol. However, the delta was around 0.53 while the position limits for coconuts/coconut coupons were 300/600, respectively. This meant that we couldn't be fully hedged when holding 600 coupons (we would be holding 18 delta). Since the coupon was far away from expiry (thus, gamma didn't matter as much) and holding delta with vega was still positive ev (but higher var), we ran the variance in hopes of making more from our exposure to vol.
+
+newplot (3)
+
+While holding this variance worked out in our backtests, we experienced a fair amount of slippage in our submission–we got unlucky and lost money from our delta exposure. In retrospect, not fully delta hedging might not have been a smart move–we were already second place and thus should've went for lower var to try and keep the lead. Our algorithm in this round made only 145k, dropping us down to a terrifying 26th place. However, in the results of this round, we saw Puerto Vallarta leap ahead with a whopping profit of 1.2 million seashells. We knew we could catch up and end up well within the top 10 if only we could figure out what they did.
+
+round 5️⃣
+image
+
+Our leading hypothesis in trying to replicate Puerto Vallarta's profits were that they must've found some way to predict the future–profits on the order of 1.2 million could reasonably match up with a successful stat. arb strategy across multiple symbols. So, we started blasting away with linear regressions on lagged and synchronous returns across all symbols and all days of our data, with the hypothesis that symbols from different days could have correlations that we'd previously missed. However, we didn't find anything particularly interesting here–starfruits seemed to have a bit of lagged predictive power in all other symbols, but this couldn't explain 1.2 million in additional profits.
+
+As a last-ditch attempt in this front, we recalled that last year's competition (which we read about in Stanford Cardinal's awesome writeup) had many similarities to this competition–especially in the first round, where the symbols we traded basically sounded the exact same. So, we went and sourced last year's data from public GitHub repositories, and performed a linear regression from returns in each of last year's symbols to returns in each symbol of this year. The results we found were surprising: diving gear returns from last year's competition, with a multiplier of ~3, was almost a perfect predictor of roses, with a 
+R
+2
+ of 0.99. Additionally, coconuts from last year was a perfect predictor of coconuts from this year, with a beta of 1.25 and an 
+R
+2
+ of 0.99.
+
+image
+
+These discoveries were quite silly, but nonetheless, our goal was to maximize pnl, and as the data from last year was publically available on the internet, we felt like this was still fair game. The rest of our efforts in this competition centered around maximizing the value we could extract from the market with our new knowledge. We believed that many other teams might find these same relationships, and therefore optimization was key.
+
+As a first pass, we simply bought/sold coconuts and roses when our predicted price rose/fell (beyond some threshold to account for spread costs) over a certain number of future iterations. While this worked spectacularly (in comparison to our pnl from literally all previous rounds), we thought we could do better. Indeed, with the data from last year, we had all local maxima/minima, and thus we could theoretically time our trades perfectly and extract max. value.
+
+To do this systematically across the three symbols we wanted to trade (roses, coconuts, and gift baskets, due to their natural correlation with roses), we developed a dynamic programming algorithm. Our algorithm took many factors into account–costs of crossing spread, the volume we could take at iteration (the volume on the orderbook), and our volume limits.
+
+The motivation behind the complexity of our dp algorithm was the fact that, at each iteration, we couldn't necessarily achieve our full desired position–therefore, we needed a state for each potential position that we could feasibly achieve. A simple example of this is to imagine a product going through the following prices: 
+8
+→
+7
+→
+12
+→
+10
+ With a position limit of 2, and with sufficient volume on the orderbook, the optimal trades would be: sell 2 -> buy 4 -> sell 4, with a pnl of 16. Now imagine if you could only buy/sell 2 shares at each iteration. Then, the optimal solution would change–you'd want to buy 2 -> buy 2 -> sell 2, with an overall pnl of 14.
+
+our dp code (click to expand)
+Our inputs here were prices–we found that generating trades over the predictor timeseries was sufficient due to the high correlation–volume percentage (percent of volume limit on the orderbook at each iteration), and spread (the average spread, cost of each trade), with a target of maximizing pnl. Using this dp algorithm, we generated a string of trades for each symbol, with `'b'` or `'s'` at each index representing the action at each timestamp. Using this algorithm, we achieved an algo pnl of 2.1 million seashells–the highest over all teams in this round! This brought us to a final overall standing of second place.
