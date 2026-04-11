@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prosperity Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js" defer></script>
+  <script src="app.js" type="module" defer></script>
+</head>
+<body>
+  <div class="background-grid" aria-hidden="true"></div>
+  <main class="layout">
+    <aside class="sidebar">
+      <header>
+        <h1>Prosperity Strategy Dashboard</h1>
+        <p>Run tutorial round backtests in-browser with drag-and-drop Python strategies.</p>
+      </header>
+
+      <section class="panel">
+        <h2>Data Files</h2>
+        <ul class="file-list" id="dataFileList"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>Strategy</h2>
+        <div class="drop-zone" id="dropZone">
+          <p><strong>Drop .py file here</strong></p>
+          <p>or</p>
+          <label class="btn" for="strategyInput">Choose file</label>
+          <input id="strategyInput" type="file" accept=".py" />
+        </div>
+        <div class="strategy-meta" id="strategyMeta">Using bundled SampleStrategy.py</div>
+      </section>
+
+      <section class="panel">
+        <h2>Run</h2>
+        <label class="field-label" for="matchingMode">Trade Matching Mode</label>
+        <select id="matchingMode" class="field-input">
+          <option value="all">all</option>
+          <option value="worse">worse</option>
+          <option value="none" selected>none</option>
+        </select>
+
+        <label class="field-label" for="emeraldLimit">EMERALDS Limit</label>
+        <input id="emeraldLimit" class="field-input" type="number" value="80" step="1" />
+
+        <label class="field-label" for="tomatoLimit">TOMATOES Limit</label>
+        <input id="tomatoLimit" class="field-input" type="number" value="80" step="1" />
+
+        <button id="runButton" class="run-btn">Run Simulation</button>
+        <div id="status" class="status">Initializing Pyodide...</div>
+      </section>
+
+      <section class="panel">
+        <h2>Quick Start</h2>
+        <ol class="quick-steps">
+          <li>Run <code>python -m http.server 8000</code> from repo root.</li>
+          <li>Open <code>http://localhost:8000/dashboard/</code> in Chrome.</li>
+          <li>Upload a strategy file and click Run Simulation.</li>
+        </ol>
+      </section>
+
+      <section class="panel metrics">
+        <h2>Metrics</h2>
+        <dl>
+          <dt>Final PnL</dt><dd id="metricFinalPnl">-</dd>
+          <dt>Max Drawdown</dt><dd id="metricMaxDd">-</dd>
+          <dt>Sharpe Ratio</dt><dd id="metricSharpe">-</dd>
+          <dt>Annualized Sharpe</dt><dd id="metricAnnSharpe">-</dd>
+          <dt>Sortino Ratio</dt><dd id="metricSortino">-</dd>
+          <dt>Calmar Ratio</dt><dd id="metricCalmar">-</dd>
+        </dl>
+      </section>
+    </aside>
+
+    <section class="content">
+      <div class="chart-card">
+        <div class="chart-title-row">
+          <h2>PnL</h2>
+          <span id="tradeCount">Trades: 0</span>
+        </div>
+        <div id="portfolioChart" class="portfolio-chart"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-title-row">
+          <h2>Product Charts (Auto-Scaled)</h2>
+        </div>
+        <div id="productCharts" class="product-chart-grid"></div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-title-row">
+          <h2>Recent Simulated Fills</h2>
+          <div class="table-actions">
+            <button id="exportFillsCsv" class="btn small-btn" type="button">Export Fills CSV</button>
+            <button id="exportEquityCsv" class="btn small-btn" type="button">Export Equity CSV</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="fillsTable">
+            <thead>
+              <tr>
+                <th>Seq</th>
+                <th>Day</th>
+                <th>Timestamp</th>
+                <th>Product</th>
+                <th>Side</th>
+                <th>Price</th>
+                <th>Qty</th>
+                <th>Position</th>
+                <th>Realized PnL</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
