@@ -79,12 +79,7 @@
     </aside>
 
     <section class="workspace">
-      <div class="top-tabs" role="tablist" aria-label="Dashboard Tabs">
-        <button id="tabOverviewBtn" class="tab-btn active" type="button" role="tab" aria-selected="true">Overview</button>
-        <button id="tabAnalysisBtn" class="tab-btn" type="button" role="tab" aria-selected="false">Analysis</button>
-      </div>
-
-      <section id="overviewTab" class="content tab-pane active" role="tabpanel">
+      <section id="overviewTab" class="content tab-pane overview-hidden" role="tabpanel" aria-hidden="true">
         <div class="chart-card">
           <div class="chart-title-row">
             <h2>PnL</h2>
@@ -129,7 +124,7 @@
         </div>
       </section>
 
-      <section id="analysisTab" class="analysis-content tab-pane" role="tabpanel" aria-hidden="true">
+      <section id="analysisTab" class="analysis-content tab-pane active" role="tabpanel" aria-hidden="false">
         <div class="chart-card analysis-filters-card">
           <div class="chart-title-row">
             <h2>Analysis Filters</h2>
@@ -157,6 +152,13 @@
                 <option value="raw" selected>Raw Price</option>
                 <option value="mid">Price - Mid</option>
                 <option value="fair">Price - Fair/Ref</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="analysisTimelineSort">Timeline Sort</label>
+              <select id="analysisTimelineSort" class="field-input">
+                <option value="time" selected>Time</option>
+                <option value="pnl">PnL Impact</option>
               </select>
             </div>
           </div>

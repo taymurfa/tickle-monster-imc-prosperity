@@ -9,10 +9,6 @@ const DATA_BASE_PATH = "../Mitchell";
 const DEFAULT_STRATEGY_PATH = "../Mitchell/SampleStrategy.py";
 
 const dom = {
-  tabOverviewBtn: document.getElementById("tabOverviewBtn"),
-  tabAnalysisBtn: document.getElementById("tabAnalysisBtn"),
-  overviewTab: document.getElementById("overviewTab"),
-  analysisTab: document.getElementById("analysisTab"),
   dataFileList: document.getElementById("dataFileList"),
   strategyInput: document.getElementById("strategyInput"),
   dropZone: document.getElementById("dropZone"),
@@ -31,6 +27,7 @@ const dom = {
   analysisSide: document.getElementById("analysisSide"),
   analysisMinQty: document.getElementById("analysisMinQty"),
   analysisNormalize: document.getElementById("analysisNormalize"),
+  analysisTimelineSort: document.getElementById("analysisTimelineSort"),
   analysisEventStrip: document.getElementById("analysisEventStrip"),
   analysisEventSummary: document.getElementById("analysisEventSummary"),
   analysisBookChart: document.getElementById("analysisBookChart"),
@@ -63,11 +60,11 @@ let lastResult = {
 };
 
 const analysisState = {
-  activeTab: "overview",
   product: "ALL",
   side: "ALL",
   minQty: 0,
   normalize: "raw",
+  timelineSort: "time",
   selectedKey: null,
   bookRows: [],
   positionRows: [],
@@ -216,20 +213,6 @@ function getSelectedLimits() {
     EMERALDS: Number.isFinite(emerald) && emerald > 0 ? emerald : 80,
     TOMATOES: Number.isFinite(tomatoes) && tomatoes > 0 ? tomatoes : 80,
   };
-}
-
-function setTab(tabName) {
-  const showOverview = tabName === "overview";
-  analysisState.activeTab = showOverview ? "overview" : "analysis";
-
-  dom.tabOverviewBtn.classList.toggle("active", showOverview);
-  dom.tabAnalysisBtn.classList.toggle("active", !showOverview);
-  dom.tabOverviewBtn.setAttribute("aria-selected", String(showOverview));
-  dom.tabAnalysisBtn.setAttribute("aria-selected", String(!showOverview));
-
-  dom.overviewTab.classList.toggle("active", showOverview);
-  dom.analysisTab.classList.toggle("active", !showOverview);
-  dom.analysisTab.setAttribute("aria-hidden", String(showOverview));
 }
 
 function inferReferencePrice(product, point) {
@@ -389,8 +372,13 @@ function buildTimelineEvents(result) {
     })
     .sort((a, b) => b.score - a.score);
 
-  const combined = [...pnlEvents.slice(0, 5), ...missed.slice(0, 5), ...tradeEvents.slice(0, 5)]
-    .sort(sortByDayThenTs);
+  const combined = [...pnlEvents.slice(0, 7), ...missed.slice(0, 7), ...tradeEvents.slice(0, 7)];
+
+  if (analysisState.timelineSort === "pnl") {
+    combined.sort((a, b) => b.score - a.score);
+  } else {
+    combined.sort(sortByDayThenTs);
+  }
 
   const dedup = [];
   const seen = new Set();
@@ -412,7 +400,8 @@ function renderTimelineEvents(result) {
 
   const events = buildTimelineEvents(result);
   analysisState.timelineEvents = events;
-  dom.analysisEventSummary.textContent = `${events.length} markers`;
+  const sortLabel = analysisState.timelineSort === "pnl" ? "PnL" : "Time";
+  dom.analysisEventSummary.textContent = `${events.length} markers (${sortLabel})`;
   dom.analysisEventStrip.innerHTML = "";
 
   if (events.length === 0) {
@@ -437,6 +426,9 @@ function renderTimelineEvents(result) {
 
 function selectTimestampByIndex(rows, index) {
   selectTimestampFromIndex(rows, index);
+  if (!analysisState.activeResult) {
+    return;
+  }
   renderAnalysisInspector(analysisState.activeResult);
   renderAnalysisFillsTable(analysisState.activeResult);
   renderMissedOpportunities(analysisState.activeResult);
@@ -649,6 +641,10 @@ function renderAnalysisBookChart(result) {
   const getLevel = (point, side, level) => {
     const prices = side === "bid" ? point.bid_prices : point.ask_prices;
     if (!prices || prices.length <= level) {
+      if (level === 0) {
+        const fallback = side === "bid" ? point.best_bid : point.best_ask;
+        return normalizePrice(product, point, fallback);
+      }
       return null;
     }
     return normalizePrice(product, point, prices[level]);
@@ -757,16 +753,24 @@ function renderAnalysisBookChart(result) {
     dom.analysisBookChart,
     traces,
     {
-      margin: { l: 56, r: 20, t: 10, b: 36 },
+      margin: { l: 60, r: 60, t: 12, b: 42 },
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(255,255,255,0.78)",
-      legend: { orientation: "h", y: 1.12 },
+      legend: { orientation: "h", y: 1.12, font: { size: 10 } },
+      hovermode: "x unified",
+      hoverdistance: -1,
+      spikedistance: -1,
       xaxis: {
         title: "Time Index",
         tickvals: axis.tickVals,
         ticktext: axis.tickText,
         showgrid: true,
         gridcolor: "rgba(15,118,110,0.08)",
+        showspikes: true,
+        spikemode: "across",
+        spikesnap: "cursor",
+        spikecolor: "#0f766e",
+        spikethickness: 1,
       },
       yaxis: {
         title: getPriceAxisTitle(product),
@@ -849,16 +853,24 @@ function renderAnalysisPositionChart(result) {
       },
     ],
     {
-      margin: { l: 56, r: 56, t: 10, b: 36 },
+      margin: { l: 60, r: 60, t: 12, b: 42 },
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(255,255,255,0.78)",
-      legend: { orientation: "h", y: 1.12 },
+      legend: { orientation: "h", y: 1.12, font: { size: 10 } },
+      hovermode: "x unified",
+      hoverdistance: -1,
+      spikedistance: -1,
       xaxis: {
         title: "Time Index",
         tickvals: axis.tickVals,
         ticktext: axis.tickText,
         showgrid: true,
         gridcolor: "rgba(15,118,110,0.08)",
+        showspikes: true,
+        spikemode: "across",
+        spikesnap: "cursor",
+        spikecolor: "#0f766e",
+        spikethickness: 1,
       },
       yaxis: {
         title: "Position",
@@ -976,6 +988,7 @@ function computeMissedOpportunities(result) {
   const product = analysisState.product;
   const sideFilter = analysisState.side;
   const minQty = Number.isFinite(analysisState.minQty) ? analysisState.minQty : 0;
+  const nearTouchTolerance = 1;
 
   const ownByKeySide = new Map();
   for (const fill of result.fills.filter((f) => f.product === product)) {
@@ -990,8 +1003,8 @@ function computeMissedOpportunities(result) {
       continue;
     }
 
-    const buyCross = point.best_bid != null && trade.price <= point.best_bid;
-    const sellCross = point.best_ask != null && trade.price >= point.best_ask;
+    const buyCross = point.best_bid != null && trade.price <= (point.best_bid + nearTouchTolerance);
+    const sellCross = point.best_ask != null && trade.price >= (point.best_ask - nearTouchTolerance);
     if (!buyCross && !sellCross) {
       continue;
     }
@@ -1040,6 +1053,15 @@ function renderMissedOpportunities(result) {
   const events = computeMissedOpportunities(result);
   dom.analysisMissedCount.textContent = `${events.length} events`;
   dom.analysisMissedTableBody.innerHTML = "";
+
+  if (events.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td colspan="9">No missed opportunities for current filters and product.</td>
+    `;
+    dom.analysisMissedTableBody.appendChild(tr);
+    return;
+  }
 
   for (const event of events.slice(-180).reverse()) {
     const tr = document.createElement("tr");
@@ -1339,11 +1361,6 @@ function wireFileInputs() {
   });
 }
 
-function wireTabs() {
-  dom.tabOverviewBtn.addEventListener("click", () => setTab("overview"));
-  dom.tabAnalysisBtn.addEventListener("click", () => setTab("analysis"));
-}
-
 function wireAnalysisControls() {
   dom.analysisProduct.addEventListener("change", () => {
     analysisState.product = dom.analysisProduct.value;
@@ -1364,6 +1381,11 @@ function wireAnalysisControls() {
 
   dom.analysisNormalize.addEventListener("change", () => {
     analysisState.normalize = dom.analysisNormalize.value;
+    renderAnalysis(lastResult);
+  });
+
+  dom.analysisTimelineSort.addEventListener("change", () => {
+    analysisState.timelineSort = dom.analysisTimelineSort.value;
     renderAnalysis(lastResult);
   });
 
@@ -1437,9 +1459,7 @@ async function main() {
   renderDataFiles();
   wireFileInputs();
   wireExportButtons();
-  wireTabs();
   wireAnalysisControls();
-  setTab("overview");
   dom.runButton.addEventListener("click", runSimulation);
 
   try {
