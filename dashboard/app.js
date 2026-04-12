@@ -28,8 +28,10 @@ const dom = {
   analysisMinQty: document.getElementById("analysisMinQty"),
   analysisNormalize: document.getElementById("analysisNormalize"),
   analysisTimelineSort: document.getElementById("analysisTimelineSort"),
+  analysisBookView: document.getElementById("analysisBookView"),
   analysisEventStrip: document.getElementById("analysisEventStrip"),
   analysisEventSummary: document.getElementById("analysisEventSummary"),
+  analysisBookMode: document.getElementById("analysisBookMode"),
   analysisBookChart: document.getElementById("analysisBookChart"),
   analysisPositionChart: document.getElementById("analysisPositionChart"),
   analysisSelectedTs: document.getElementById("analysisSelectedTs"),
@@ -65,6 +67,7 @@ const analysisState = {
   minQty: 0,
   normalize: "raw",
   timelineSort: "time",
+  bookView: "auto",
   selectedKey: null,
   bookRows: [],
   positionRows: [],
@@ -253,6 +256,39 @@ function getPriceAxisTitle(product) {
   }
   const hasFair = Number.isFinite(FIXED_VALUE_PRODUCTS[product]);
   return hasFair ? "Price - Fair Value" : "Price - Reference";
+}
+
+function detectFixedLikeProduct(product, productPoints) {
+  if (!productPoints || productPoints.length === 0) {
+    return false;
+  }
+
+  const fair = FIXED_VALUE_PRODUCTS[product];
+  const mids = productPoints.map((p) => Number(p.mid_price)).filter((v) => Number.isFinite(v));
+  if (mids.length === 0) {
+    return false;
+  }
+
+  const minMid = Math.min(...mids);
+  const maxMid = Math.max(...mids);
+  const range = maxMid - minMid;
+
+  if (Number.isFinite(fair)) {
+    const maxAbsEdge = Math.max(...mids.map((m) => Math.abs(m - fair)));
+    return range <= 24 && maxAbsEdge <= 14;
+  }
+
+  return range <= 8;
+}
+
+function resolveBookViewMode(product, productPoints) {
+  if (analysisState.bookView === "standard") {
+    return "standard";
+  }
+  if (analysisState.bookView === "fixed") {
+    return "fixed";
+  }
+  return detectFixedLikeProduct(product, productPoints) ? "fixed" : "standard";
 }
 
 function selectedIndexFromRows(rows) {
@@ -489,6 +525,8 @@ function renderPortfolioChart(points) {
     },
   ];
 
+  const yAxisTitle = resolvedBookMode === "fixed" ? "Edge vs Fair Value" : getPriceAxisTitle(product);
+
   Plotly.newPlot(
     dom.portfolioChart,
     traces,
@@ -601,6 +639,11 @@ function renderAnalysisBookChart(result) {
   const productPoints = getProductPoints(result.points, product);
   analysisState.bookRows = productPoints;
 
+  const resolvedBookMode = resolveBookViewMode(product, productPoints);
+  if (dom.analysisBookMode) {
+    dom.analysisBookMode.textContent = resolvedBookMode === "fixed" ? "Mode: Fixed Edge View" : "Mode: Standard Price View";
+  }
+
   const axis = buildTimeAxis(productPoints);
   const indexByKey = new Map(productPoints.map((p, idx) => [parseKey(p), idx]));
   const selected = selectedRowFromPoints(productPoints);
@@ -633,7 +676,7 @@ function renderAnalysisBookChart(result) {
     });
 
   const marketX = marketTrades.map((t) => indexByKey.get(`${t.day}|${t.timestamp}`));
-  const marketY = marketTrades.map((t) => {
+  let marketY = marketTrades.map((t) => {
     const point = analysisState.pointLookup.get(`${product}|${t.day}|${t.timestamp}`) || null;
     return normalizePrice(product, point, t.price);
   });
@@ -650,13 +693,29 @@ function renderAnalysisBookChart(result) {
     return normalizePrice(product, point, prices[level]);
   };
 
-  const midSeries = productPoints.map((p) => normalizePrice(product, p, p.mid_price));
-  const bidL1 = productPoints.map((p) => getLevelPrice(p, "bid", 0));
-  const askL1 = productPoints.map((p) => getLevelPrice(p, "ask", 0));
+  let midSeries = productPoints.map((p) => normalizePrice(product, p, p.mid_price));
+  let bidL1 = productPoints.map((p) => getLevelPrice(p, "bid", 0));
+  let askL1 = productPoints.map((p) => getLevelPrice(p, "ask", 0));
   const bidL2 = productPoints.map((p) => getLevelPrice(p, "bid", 1));
   const bidL3 = productPoints.map((p) => getLevelPrice(p, "bid", 2));
   const askL2 = productPoints.map((p) => getLevelPrice(p, "ask", 1));
   const askL3 = productPoints.map((p) => getLevelPrice(p, "ask", 2));
+
+  if (resolvedBookMode === "fixed") {
+    const fair = inferReferencePrice(product, productPoints[0]);
+    const toEdge = (value) => {
+      if (!Number.isFinite(value) || !Number.isFinite(fair)) {
+        return null;
+      }
+      return value - fair;
+    };
+
+    marketY = marketY.map(toEdge);
+    midSeries = midSeries.map(toEdge);
+    bidL1 = bidL1.map(toEdge);
+    askL1 = askL1.map(toEdge);
+    normalizedFillY = normalizedFillY.map(toEdge);
+  }
 
   const hasDepthL2 = bidL2.some((v) => v != null) || askL2.some((v) => v != null);
   const hasDepthL3 = bidL3.some((v) => v != null) || askL3.some((v) => v != null);
@@ -664,33 +723,42 @@ function renderAnalysisBookChart(result) {
   const traces = [
     {
       type: "scatter",
-      mode: "lines",
+      mode: resolvedBookMode === "fixed" ? "markers" : "lines",
       name: "Best Bid",
       x: axis.x,
       y: bidL1,
       line: { color: "#2563eb", width: 2 },
+      marker: { color: "#2563eb", size: resolvedBookMode === "fixed" ? 4 : 0, opacity: 0.65 },
       customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
-      hovertemplate: "%{customdata}<br>Best Bid=%{y:.2f}<extra></extra>",
+      hovertemplate: resolvedBookMode === "fixed"
+        ? "%{customdata}<br>Bid Edge=%{y:.2f}<extra></extra>"
+        : "%{customdata}<br>Best Bid=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
-      mode: "lines",
+      mode: resolvedBookMode === "fixed" ? "markers" : "lines",
       name: "Best Ask",
       x: axis.x,
       y: askL1,
       line: { color: "#dc2626", width: 2 },
+      marker: { color: "#dc2626", size: resolvedBookMode === "fixed" ? 4 : 0, opacity: 0.65 },
       customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
-      hovertemplate: "%{customdata}<br>Best Ask=%{y:.2f}<extra></extra>",
+      hovertemplate: resolvedBookMode === "fixed"
+        ? "%{customdata}<br>Ask Edge=%{y:.2f}<extra></extra>"
+        : "%{customdata}<br>Best Ask=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
-      mode: "lines",
+      mode: resolvedBookMode === "fixed" ? "markers" : "lines",
       name: "Mid",
       x: axis.x,
       y: midSeries,
       line: { color: "#b45309", width: 1.8, dash: "dot" },
+      marker: { color: "#b45309", size: resolvedBookMode === "fixed" ? 3 : 0, opacity: 0.45 },
       customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
-      hovertemplate: "%{customdata}<br>Mid=%{y:.2f}<extra></extra>",
+      hovertemplate: resolvedBookMode === "fixed"
+        ? "%{customdata}<br>Mid Edge=%{y:.2f}<extra></extra>"
+        : "%{customdata}<br>Mid=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
@@ -704,7 +772,9 @@ function renderAnalysisBookChart(result) {
         color: productFills.map((f) => (f.side === "BUY" ? "#16a34a" : "#dc2626")),
         line: { color: "#111827", width: 0.5 },
       },
-      hovertemplate: "%{text}<br>Fill=%{y:.2f}<extra></extra>",
+      hovertemplate: resolvedBookMode === "fixed"
+        ? "%{text}<br>Fill Edge=%{y:.2f}<extra></extra>"
+        : "%{text}<br>Fill=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
@@ -713,7 +783,9 @@ function renderAnalysisBookChart(result) {
       x: marketX,
       y: marketY,
       marker: { size: 5, color: "#6b7280", opacity: 0.6 },
-      hovertemplate: "Market Trade=%{y:.2f}<extra></extra>",
+      hovertemplate: resolvedBookMode === "fixed"
+        ? "Market Edge=%{y:.2f}<extra></extra>"
+        : "Market Trade=%{y:.2f}<extra></extra>",
     },
   ];
 
@@ -787,7 +859,7 @@ function renderAnalysisBookChart(result) {
         spikethickness: 1,
       },
       yaxis: {
-        title: getPriceAxisTitle(product),
+        title: yAxisTitle,
         range: computeRange([
           ...midSeries,
           ...bidL1,
@@ -799,11 +871,27 @@ function renderAnalysisBookChart(result) {
           ...normalizedFillY,
           ...marketY,
         ]),
-        tickformat: analysisState.normalize === "raw" ? ",.0f" : ",.2f",
+        tickformat: resolvedBookMode === "fixed" ? ",.2f" : (analysisState.normalize === "raw" ? ",.0f" : ",.2f"),
         showgrid: true,
         gridcolor: "rgba(15,118,110,0.09)",
       },
-      shapes: buildSelectionShape(selectedIndex),
+      shapes: [
+        ...buildSelectionShape(selectedIndex),
+        ...(resolvedBookMode === "fixed"
+          ? [
+              {
+                type: "line",
+                xref: "paper",
+                yref: "y",
+                x0: 0,
+                x1: 1,
+                y0: 0,
+                y1: 0,
+                line: { color: "rgba(180,83,9,0.55)", width: 1, dash: "dot" },
+              },
+            ]
+          : []),
+      ],
     },
     { responsive: true, displaylogo: false }
   );
@@ -1404,6 +1492,11 @@ function wireAnalysisControls() {
 
   dom.analysisNormalize.addEventListener("change", () => {
     analysisState.normalize = dom.analysisNormalize.value;
+    renderAnalysis(lastResult);
+  });
+
+  dom.analysisBookView.addEventListener("change", () => {
+    analysisState.bookView = dom.analysisBookView.value;
     renderAnalysis(lastResult);
   });
 
