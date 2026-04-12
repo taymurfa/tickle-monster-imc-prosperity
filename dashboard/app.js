@@ -550,8 +550,6 @@ function renderPortfolioChart(points) {
     },
   ];
 
-  const yAxisTitle = resolvedBookMode === "fixed" ? "Edge vs Fair Value" : getPriceAxisTitle(product);
-
   Plotly.newPlot(
     dom.portfolioChart,
     traces,
