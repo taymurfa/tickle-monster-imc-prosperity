@@ -43,7 +43,7 @@ body {
 
 .workspace {
   display: grid;
-  grid-template-rows: 1fr;
+  grid-template-rows: auto auto;
   gap: 12px;
   min-height: 0;
 }
@@ -72,14 +72,6 @@ body {
 .tab-btn.active {
   color: #fff;
   background: linear-gradient(120deg, var(--accent), #0e9f6e);
-}
-
-.tab-pane {
-  display: none;
-}
-
-.tab-pane.active {
-  display: grid;
 }
 
 .overview-hidden {

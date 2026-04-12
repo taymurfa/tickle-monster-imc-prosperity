@@ -79,7 +79,7 @@
     </aside>
 
     <section class="workspace">
-      <section id="overviewTab" class="content tab-pane overview-hidden" role="tabpanel" aria-hidden="true">
+      <section id="overviewTab" class="content" role="region" aria-label="Overview">
         <div class="chart-card">
           <div class="chart-title-row">
             <h2>PnL</h2>
@@ -124,7 +124,7 @@
         </div>
       </section>
 
-      <section id="analysisTab" class="analysis-content tab-pane active" role="tabpanel" aria-hidden="false">
+      <section id="analysisTab" class="analysis-content" role="region" aria-label="Analysis">
         <div class="chart-card analysis-filters-card">
           <div class="chart-title-row">
             <h2>Analysis Filters</h2>
@@ -174,7 +174,7 @@
 
         <div class="chart-card">
           <div class="chart-title-row">
-            <h2>Order-Book + Fills</h2>
+            <h2>Top of Book + Fills</h2>
             <span id="analysisSelectedTs">Selected: none</span>
           </div>
           <div id="analysisBookChart" class="analysis-chart"></div>

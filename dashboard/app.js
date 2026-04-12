@@ -638,7 +638,7 @@ function renderAnalysisBookChart(result) {
     return normalizePrice(product, point, t.price);
   });
 
-  const getLevel = (point, side, level) => {
+  const getLevelPrice = (point, side, level) => {
     const prices = side === "bid" ? point.bid_prices : point.ask_prices;
     if (!prices || prices.length <= level) {
       if (level === 0) {
@@ -650,79 +650,47 @@ function renderAnalysisBookChart(result) {
     return normalizePrice(product, point, prices[level]);
   };
 
-  const bidL1 = productPoints.map((p) => getLevel(p, "bid", 0));
-  const bidL2 = productPoints.map((p) => getLevel(p, "bid", 1));
-  const bidL3 = productPoints.map((p) => getLevel(p, "bid", 2));
-  const askL1 = productPoints.map((p) => getLevel(p, "ask", 0));
-  const askL2 = productPoints.map((p) => getLevel(p, "ask", 1));
-  const askL3 = productPoints.map((p) => getLevel(p, "ask", 2));
+  const midSeries = productPoints.map((p) => normalizePrice(product, p, p.mid_price));
+  const bidL1 = productPoints.map((p) => getLevelPrice(p, "bid", 0));
+  const askL1 = productPoints.map((p) => getLevelPrice(p, "ask", 0));
+  const bidL2 = productPoints.map((p) => getLevelPrice(p, "bid", 1));
+  const bidL3 = productPoints.map((p) => getLevelPrice(p, "bid", 2));
+  const askL2 = productPoints.map((p) => getLevelPrice(p, "ask", 1));
+  const askL3 = productPoints.map((p) => getLevelPrice(p, "ask", 2));
 
-  const levelMeta = (point, side, level) => {
-    const volumes = side === "bid" ? point.bid_volumes : point.ask_volumes;
-    const qty = volumes && volumes.length > level ? volumes[level] : null;
-    return `D${point.day} T${point.timestamp} q=${qty == null ? "n/a" : qty}`;
-  };
+  const hasDepthL2 = bidL2.some((v) => v != null) || askL2.some((v) => v != null);
+  const hasDepthL3 = bidL3.some((v) => v != null) || askL3.some((v) => v != null);
 
   const traces = [
     {
       type: "scatter",
       mode: "lines",
-      name: "Bid L1",
+      name: "Best Bid",
       x: axis.x,
       y: bidL1,
       line: { color: "#2563eb", width: 2 },
-      customdata: productPoints.map((p) => levelMeta(p, "bid", 0)),
-      hovertemplate: "%{customdata}<br>Bid L1=%{y:.2f}<extra></extra>",
+      customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
+      hovertemplate: "%{customdata}<br>Best Bid=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
       mode: "lines",
-      name: "Bid L2",
-      x: axis.x,
-      y: bidL2,
-      line: { color: "#60a5fa", width: 1.5, dash: "dot" },
-      customdata: productPoints.map((p) => levelMeta(p, "bid", 1)),
-      hovertemplate: "%{customdata}<br>Bid L2=%{y:.2f}<extra></extra>",
-    },
-    {
-      type: "scatter",
-      mode: "lines",
-      name: "Bid L3",
-      x: axis.x,
-      y: bidL3,
-      line: { color: "#93c5fd", width: 1.5, dash: "dash" },
-      customdata: productPoints.map((p) => levelMeta(p, "bid", 2)),
-      hovertemplate: "%{customdata}<br>Bid L3=%{y:.2f}<extra></extra>",
-    },
-    {
-      type: "scatter",
-      mode: "lines",
-      name: "Ask L1",
+      name: "Best Ask",
       x: axis.x,
       y: askL1,
       line: { color: "#dc2626", width: 2 },
-      customdata: productPoints.map((p) => levelMeta(p, "ask", 0)),
-      hovertemplate: "%{customdata}<br>Ask L1=%{y:.2f}<extra></extra>",
+      customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
+      hovertemplate: "%{customdata}<br>Best Ask=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
       mode: "lines",
-      name: "Ask L2",
+      name: "Mid",
       x: axis.x,
-      y: askL2,
-      line: { color: "#f87171", width: 1.5, dash: "dot" },
-      customdata: productPoints.map((p) => levelMeta(p, "ask", 1)),
-      hovertemplate: "%{customdata}<br>Ask L2=%{y:.2f}<extra></extra>",
-    },
-    {
-      type: "scatter",
-      mode: "lines",
-      name: "Ask L3",
-      x: axis.x,
-      y: askL3,
-      line: { color: "#fca5a5", width: 1.5, dash: "dash" },
-      customdata: productPoints.map((p) => levelMeta(p, "ask", 2)),
-      hovertemplate: "%{customdata}<br>Ask L3=%{y:.2f}<extra></extra>",
+      y: midSeries,
+      line: { color: "#b45309", width: 1.8, dash: "dot" },
+      customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
+      hovertemplate: "%{customdata}<br>Mid=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
@@ -748,6 +716,52 @@ function renderAnalysisBookChart(result) {
       hovertemplate: "Market Trade=%{y:.2f}<extra></extra>",
     },
   ];
+
+  if (hasDepthL2) {
+    traces.push(
+      {
+        type: "scatter",
+        mode: "lines",
+        name: "Bid L2",
+        x: axis.x,
+        y: bidL2,
+        line: { color: "#60a5fa", width: 1.2, dash: "dash" },
+        visible: "legendonly",
+      },
+      {
+        type: "scatter",
+        mode: "lines",
+        name: "Ask L2",
+        x: axis.x,
+        y: askL2,
+        line: { color: "#f87171", width: 1.2, dash: "dash" },
+        visible: "legendonly",
+      }
+    );
+  }
+
+  if (hasDepthL3) {
+    traces.push(
+      {
+        type: "scatter",
+        mode: "lines",
+        name: "Bid L3",
+        x: axis.x,
+        y: bidL3,
+        line: { color: "#93c5fd", width: 1, dash: "dot" },
+        visible: "legendonly",
+      },
+      {
+        type: "scatter",
+        mode: "lines",
+        name: "Ask L3",
+        x: axis.x,
+        y: askL3,
+        line: { color: "#fca5a5", width: 1, dash: "dot" },
+        visible: "legendonly",
+      }
+    );
+  }
 
   Plotly.newPlot(
     dom.analysisBookChart,
@@ -775,11 +789,12 @@ function renderAnalysisBookChart(result) {
       yaxis: {
         title: getPriceAxisTitle(product),
         range: computeRange([
+          ...midSeries,
           ...bidL1,
-          ...bidL2,
-          ...bidL3,
           ...askL1,
+          ...bidL2,
           ...askL2,
+          ...bidL3,
           ...askL3,
           ...normalizedFillY,
           ...marketY,
@@ -796,6 +811,7 @@ function renderAnalysisBookChart(result) {
   if (typeof dom.analysisBookChart.removeAllListeners === "function") {
     dom.analysisBookChart.removeAllListeners("plotly_click");
     dom.analysisBookChart.removeAllListeners("plotly_hover");
+    dom.analysisBookChart.removeAllListeners("plotly_unhover");
   }
   dom.analysisBookChart.on("plotly_click", (event) => {
     if (!event || !event.points || event.points.length === 0) {
@@ -810,6 +826,9 @@ function renderAnalysisBookChart(result) {
     }
     const idx = Number(event.points[0].x);
     selectTimestampByIndex(productPoints, idx);
+  });
+  dom.analysisBookChart.on("plotly_unhover", () => {
+    applySelectionCrosshair();
   });
 }
 
@@ -893,6 +912,7 @@ function renderAnalysisPositionChart(result) {
   if (typeof dom.analysisPositionChart.removeAllListeners === "function") {
     dom.analysisPositionChart.removeAllListeners("plotly_click");
     dom.analysisPositionChart.removeAllListeners("plotly_hover");
+    dom.analysisPositionChart.removeAllListeners("plotly_unhover");
   }
   dom.analysisPositionChart.on("plotly_click", (event) => {
     if (!event || !event.points || event.points.length === 0) {
@@ -907,6 +927,9 @@ function renderAnalysisPositionChart(result) {
     }
     const idx = Number(event.points[0].x);
     selectTimestampByIndex(productPoints, idx);
+  });
+  dom.analysisPositionChart.on("plotly_unhover", () => {
+    applySelectionCrosshair();
   });
 }
 
@@ -990,10 +1013,10 @@ function computeMissedOpportunities(result) {
   const minQty = Number.isFinite(analysisState.minQty) ? analysisState.minQty : 0;
   const nearTouchTolerance = 1;
 
-  const ownByKeySide = new Map();
+  const ownByKeySidePrice = new Map();
   for (const fill of result.fills.filter((f) => f.product === product)) {
-    const key = `${fill.day}|${fill.timestamp}|${fill.side}`;
-    ownByKeySide.set(key, (ownByKeySide.get(key) || 0) + fill.quantity);
+    const key = `${fill.day}|${fill.timestamp}|${fill.side}|${fill.price}`;
+    ownByKeySidePrice.set(key, (ownByKeySidePrice.get(key) || 0) + fill.quantity);
   }
 
   const events = [];
@@ -1018,8 +1041,8 @@ function computeMissedOpportunities(result) {
       continue;
     }
 
-    const ownKey = `${trade.day}|${trade.timestamp}|${side}`;
-    const ownQty = ownByKeySide.get(ownKey) || 0;
+    const ownKey = `${trade.day}|${trade.timestamp}|${side}|${trade.price}`;
+    const ownQty = ownByKeySidePrice.get(ownKey) || 0;
     const missedQty = Math.max(0, trade.quantity - ownQty);
     if (missedQty <= 0) {
       continue;
