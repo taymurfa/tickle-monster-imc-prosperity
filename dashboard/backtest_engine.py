@@ -525,6 +525,8 @@ def run_dashboard_backtest(
 
     all_points: list[dict[str, Any]] = []
     all_fills: list[dict[str, Any]] = []
+    all_market_trades: list[dict[str, Any]] = []
+    state_logs: list[dict[str, Any]] = []
     day_equity_paths: list[list[float]] = []
 
     fill_seq = 0
@@ -560,11 +562,31 @@ def run_dashboard_backtest(
             if not isinstance(orders, dict):
                 raise ValueError("Trader orders must be dict[Symbol, list[Order]]")
             state.traderData = trader_data if isinstance(trader_data, str) else ""
+            state_logs.append(
+                {
+                    "day": day_num,
+                    "timestamp": ts,
+                    "trader_data": state.traderData,
+                }
+            )
 
             _enforce_limits(state, products, orders, limits_override)
 
             for product in products:
                 raw_market_trades = trades_by_ts.get(ts, {}).get(product, [])
+                for t in raw_market_trades:
+                    all_market_trades.append(
+                        {
+                            "day": day_num,
+                            "timestamp": ts,
+                            "product": product,
+                            "price": t.price,
+                            "quantity": t.quantity,
+                            "buyer": t.buyer,
+                            "seller": t.seller,
+                        }
+                    )
+
                 market_shadow = [
                     {
                         "price": t.price,
@@ -620,6 +642,10 @@ def run_dashboard_backtest(
                         "mid_price": row.mid_price,
                         "best_bid": row.bid_prices[0] if row.bid_prices else None,
                         "best_ask": row.ask_prices[0] if row.ask_prices else None,
+                        "bid_prices": row.bid_prices,
+                        "bid_volumes": row.bid_volumes,
+                        "ask_prices": row.ask_prices,
+                        "ask_volumes": row.ask_volumes,
                         "position": pos,
                         "realized_pnl": profit_loss[product],
                         "product_mtm_pnl": mtm,
@@ -637,6 +663,8 @@ def run_dashboard_backtest(
     payload = {
         "points": all_points,
         "fills": all_fills,
+        "market_trades": all_market_trades,
+        "state_logs": state_logs,
         "metrics": metrics,
         "matching_mode": matching_mode,
         "limits_override": limits_override,

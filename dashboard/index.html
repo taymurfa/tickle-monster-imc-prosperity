@@ -78,49 +78,170 @@
       </section>
     </aside>
 
-    <section class="content">
-      <div class="chart-card">
-        <div class="chart-title-row">
-          <h2>PnL</h2>
-          <span id="tradeCount">Trades: 0</span>
-        </div>
-        <div id="portfolioChart" class="portfolio-chart"></div>
+    <section class="workspace">
+      <div class="top-tabs" role="tablist" aria-label="Dashboard Tabs">
+        <button id="tabOverviewBtn" class="tab-btn active" type="button" role="tab" aria-selected="true">Overview</button>
+        <button id="tabAnalysisBtn" class="tab-btn" type="button" role="tab" aria-selected="false">Analysis</button>
       </div>
 
-      <div class="chart-card">
-        <div class="chart-title-row">
-          <h2>Product Charts (Auto-Scaled)</h2>
+      <section id="overviewTab" class="content tab-pane active" role="tabpanel">
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>PnL</h2>
+            <span id="tradeCount">Trades: 0</span>
+          </div>
+          <div id="portfolioChart" class="portfolio-chart"></div>
         </div>
-        <div id="productCharts" class="product-chart-grid"></div>
-      </div>
 
-      <div class="table-card">
-        <div class="table-title-row">
-          <h2>Recent Simulated Fills</h2>
-          <div class="table-actions">
-            <button id="exportFillsCsv" class="btn small-btn" type="button">Export Fills CSV</button>
-            <button id="exportEquityCsv" class="btn small-btn" type="button">Export Equity CSV</button>
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Product Charts (Auto-Scaled)</h2>
+          </div>
+          <div id="productCharts" class="product-chart-grid"></div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-title-row">
+            <h2>Recent Simulated Fills</h2>
+            <div class="table-actions">
+              <button id="exportFillsCsv" class="btn small-btn" type="button">Export Fills CSV</button>
+              <button id="exportEquityCsv" class="btn small-btn" type="button">Export Equity CSV</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="fillsTable">
+              <thead>
+                <tr>
+                  <th>Seq</th>
+                  <th>Day</th>
+                  <th>Timestamp</th>
+                  <th>Product</th>
+                  <th>Side</th>
+                  <th>Price</th>
+                  <th>Qty</th>
+                  <th>Position</th>
+                  <th>Realized PnL</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
           </div>
         </div>
-        <div class="table-wrap">
-          <table id="fillsTable">
-            <thead>
-              <tr>
-                <th>Seq</th>
-                <th>Day</th>
-                <th>Timestamp</th>
-                <th>Product</th>
-                <th>Side</th>
-                <th>Price</th>
-                <th>Qty</th>
-                <th>Position</th>
-                <th>Realized PnL</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+      </section>
+
+      <section id="analysisTab" class="analysis-content tab-pane" role="tabpanel" aria-hidden="true">
+        <div class="chart-card analysis-filters-card">
+          <div class="chart-title-row">
+            <h2>Analysis Filters</h2>
+          </div>
+          <div class="analysis-filters-grid">
+            <div>
+              <label class="field-label" for="analysisProduct">Product</label>
+              <select id="analysisProduct" class="field-input"></select>
+            </div>
+            <div>
+              <label class="field-label" for="analysisSide">Side</label>
+              <select id="analysisSide" class="field-input">
+                <option value="ALL">ALL</option>
+                <option value="BUY">BUY</option>
+                <option value="SELL">SELL</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="analysisMinQty">Min Fill Qty</label>
+              <input id="analysisMinQty" class="field-input" type="number" min="0" step="1" value="0" />
+            </div>
+            <div>
+              <label class="field-label" for="analysisNormalize">Price View</label>
+              <select id="analysisNormalize" class="field-input">
+                <option value="raw" selected>Raw Price</option>
+                <option value="mid">Price - Mid</option>
+                <option value="fair">Price - Fair/Ref</option>
+              </select>
+            </div>
+          </div>
         </div>
-      </div>
+
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Event Timeline</h2>
+            <span id="analysisEventSummary">0 markers</span>
+          </div>
+          <div id="analysisEventStrip" class="analysis-event-strip"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Order-Book + Fills</h2>
+            <span id="analysisSelectedTs">Selected: none</span>
+          </div>
+          <div id="analysisBookChart" class="analysis-chart"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Position + Product PnL</h2>
+          </div>
+          <div id="analysisPositionChart" class="analysis-chart"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Timestamp Inspector</h2>
+          </div>
+          <pre id="analysisTimestampDetail" class="analysis-detail">Run a simulation and click a point to inspect details.</pre>
+          <h3 class="analysis-subtitle">Strategy State</h3>
+          <pre id="analysisStateDetail" class="analysis-detail">No traderData captured yet.</pre>
+        </div>
+
+        <div class="table-card">
+          <div class="table-title-row">
+            <h2>Filtered Fills</h2>
+          </div>
+          <div class="table-wrap">
+            <table id="analysisFillsTable">
+              <thead>
+                <tr>
+                  <th>Seq</th>
+                  <th>Day</th>
+                  <th>Timestamp</th>
+                  <th>Product</th>
+                  <th>Side</th>
+                  <th>Price</th>
+                  <th>Qty</th>
+                  <th>Edge vs Mid</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-title-row">
+            <h2>Missed Opportunity Diagnostics</h2>
+            <span id="analysisMissedCount">0 events</span>
+          </div>
+          <div class="table-wrap">
+            <table id="analysisMissedTable">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Timestamp</th>
+                  <th>Product</th>
+                  <th>Side</th>
+                  <th>Trade Px</th>
+                  <th>Trade Qty</th>
+                  <th>Own Qty</th>
+                  <th>Missed Qty</th>
+                  <th>Edge vs Touch</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </section>
   </main>
 </body>

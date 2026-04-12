@@ -9,6 +9,10 @@ const DATA_BASE_PATH = "../Mitchell";
 const DEFAULT_STRATEGY_PATH = "../Mitchell/SampleStrategy.py";
 
 const dom = {
+  tabOverviewBtn: document.getElementById("tabOverviewBtn"),
+  tabAnalysisBtn: document.getElementById("tabAnalysisBtn"),
+  overviewTab: document.getElementById("overviewTab"),
+  analysisTab: document.getElementById("analysisTab"),
   dataFileList: document.getElementById("dataFileList"),
   strategyInput: document.getElementById("strategyInput"),
   dropZone: document.getElementById("dropZone"),
@@ -23,6 +27,20 @@ const dom = {
   exportFillsCsv: document.getElementById("exportFillsCsv"),
   exportEquityCsv: document.getElementById("exportEquityCsv"),
   fillsTableBody: document.querySelector("#fillsTable tbody"),
+  analysisProduct: document.getElementById("analysisProduct"),
+  analysisSide: document.getElementById("analysisSide"),
+  analysisMinQty: document.getElementById("analysisMinQty"),
+  analysisNormalize: document.getElementById("analysisNormalize"),
+  analysisEventStrip: document.getElementById("analysisEventStrip"),
+  analysisEventSummary: document.getElementById("analysisEventSummary"),
+  analysisBookChart: document.getElementById("analysisBookChart"),
+  analysisPositionChart: document.getElementById("analysisPositionChart"),
+  analysisSelectedTs: document.getElementById("analysisSelectedTs"),
+  analysisTimestampDetail: document.getElementById("analysisTimestampDetail"),
+  analysisStateDetail: document.getElementById("analysisStateDetail"),
+  analysisFillsTableBody: document.querySelector("#analysisFillsTable tbody"),
+  analysisMissedTableBody: document.querySelector("#analysisMissedTable tbody"),
+  analysisMissedCount: document.getElementById("analysisMissedCount"),
   tradeCount: document.getElementById("tradeCount"),
   metrics: {
     finalPnl: document.getElementById("metricFinalPnl"),
@@ -39,7 +57,23 @@ let strategyCode = "";
 let lastResult = {
   points: [],
   fills: [],
+  market_trades: [],
+  state_logs: [],
   metrics: {},
+};
+
+const analysisState = {
+  activeTab: "overview",
+  product: "ALL",
+  side: "ALL",
+  minQty: 0,
+  normalize: "raw",
+  selectedKey: null,
+  bookRows: [],
+  positionRows: [],
+  timelineEvents: [],
+  pointLookup: new Map(),
+  activeResult: null,
 };
 
 const FIXED_VALUE_PRODUCTS = {
@@ -92,6 +126,10 @@ function parseKey(point) {
 
 function parseFillKey(fill) {
   return `${fill.day}|${fill.timestamp}`;
+}
+
+function parseProductKey(row) {
+  return `${row.product}|${row.day}|${row.timestamp}`;
 }
 
 function sortByDayThenTs(a, b) {
@@ -180,6 +218,232 @@ function getSelectedLimits() {
   };
 }
 
+function setTab(tabName) {
+  const showOverview = tabName === "overview";
+  analysisState.activeTab = showOverview ? "overview" : "analysis";
+
+  dom.tabOverviewBtn.classList.toggle("active", showOverview);
+  dom.tabAnalysisBtn.classList.toggle("active", !showOverview);
+  dom.tabOverviewBtn.setAttribute("aria-selected", String(showOverview));
+  dom.tabAnalysisBtn.setAttribute("aria-selected", String(!showOverview));
+
+  dom.overviewTab.classList.toggle("active", showOverview);
+  dom.analysisTab.classList.toggle("active", !showOverview);
+  dom.analysisTab.setAttribute("aria-hidden", String(showOverview));
+}
+
+function inferReferencePrice(product, point) {
+  const fair = FIXED_VALUE_PRODUCTS[product];
+  if (Number.isFinite(fair)) {
+    return fair;
+  }
+  return point?.mid_price ?? null;
+}
+
+function normalizePrice(product, point, price) {
+  if (price == null || !Number.isFinite(price)) {
+    return null;
+  }
+  if (analysisState.normalize === "raw") {
+    return price;
+  }
+  if (!point) {
+    return null;
+  }
+  if (analysisState.normalize === "mid") {
+    return price - point.mid_price;
+  }
+
+  const ref = inferReferencePrice(product, point);
+  if (!Number.isFinite(ref)) {
+    return price - point.mid_price;
+  }
+  return price - ref;
+}
+
+function getPriceAxisTitle(product) {
+  if (analysisState.normalize === "raw") {
+    return "Price";
+  }
+  if (analysisState.normalize === "mid") {
+    return "Price - Mid";
+  }
+  const hasFair = Number.isFinite(FIXED_VALUE_PRODUCTS[product]);
+  return hasFair ? "Price - Fair Value" : "Price - Reference";
+}
+
+function selectedIndexFromRows(rows) {
+  if (!rows || rows.length === 0) {
+    return null;
+  }
+  const selected = selectedRowFromPoints(rows);
+  if (!selected) {
+    return null;
+  }
+  const key = parseKey(selected);
+  const index = rows.findIndex((r) => parseKey(r) === key);
+  return index >= 0 ? index : null;
+}
+
+function applySelectionCrosshair() {
+  const bookIndex = selectedIndexFromRows(analysisState.bookRows);
+  const positionIndex = selectedIndexFromRows(analysisState.positionRows);
+
+  if (analysisState.bookRows.length > 0) {
+    Plotly.relayout(dom.analysisBookChart, { shapes: buildSelectionShape(bookIndex) });
+  }
+  if (analysisState.positionRows.length > 0) {
+    Plotly.relayout(dom.analysisPositionChart, { shapes: buildSelectionShape(positionIndex) });
+  }
+}
+
+function formatTraderData(raw) {
+  if (!raw) {
+    return "No traderData for this timestamp.";
+  }
+
+  const text = String(raw).trim();
+  if (!text) {
+    return "No traderData for this timestamp.";
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return text;
+  }
+}
+
+function selectTimestampByKey(rows, key) {
+  if (!key) {
+    return;
+  }
+  const index = rows.findIndex((r) => parseKey(r) === key);
+  if (index >= 0) {
+    selectTimestampByIndex(rows, index);
+  }
+}
+
+function updateTimelineChipSelection() {
+  if (!dom.analysisEventStrip) {
+    return;
+  }
+  const key = analysisState.selectedKey;
+  const chips = dom.analysisEventStrip.querySelectorAll(".analysis-event-chip");
+  for (const chip of chips) {
+    chip.classList.toggle("active", chip.dataset.key === key);
+  }
+}
+
+function buildTimelineEvents(result) {
+  const product = analysisState.product;
+  const points = getProductPoints(result.points, product);
+  if (points.length < 2) {
+    return [];
+  }
+
+  const pnlEvents = [];
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const cur = points[i];
+    const delta = Math.abs(cur.product_mtm_pnl - prev.product_mtm_pnl);
+    pnlEvents.push({
+      kind: "pnl",
+      day: cur.day,
+      timestamp: cur.timestamp,
+      key: parseKey(cur),
+      score: delta,
+      label: `PnL jump ${fmtNumber(delta, 0)}`,
+    });
+  }
+  pnlEvents.sort((a, b) => b.score - a.score);
+
+  const missed = computeMissedOpportunities(result)
+    .map((m) => ({
+      kind: "missed",
+      day: m.day,
+      timestamp: m.timestamp,
+      key: `${m.day}|${m.timestamp}`,
+      score: Math.abs(m.edge_vs_touch) * m.missed_qty,
+      label: `Missed ${m.side} q${m.missed_qty}`,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const tradeAgg = new Map();
+  for (const trade of (result.market_trades || []).filter((t) => t.product === product)) {
+    const key = `${trade.day}|${trade.timestamp}`;
+    tradeAgg.set(key, (tradeAgg.get(key) || 0) + trade.quantity);
+  }
+  const tradeEvents = [...tradeAgg.entries()]
+    .map(([key, qty]) => {
+      const [day, timestamp] = key.split("|").map((v) => Number(v));
+      return {
+        kind: "trade",
+        day,
+        timestamp,
+        key,
+        score: qty,
+        label: `Market vol q${qty}`,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const combined = [...pnlEvents.slice(0, 5), ...missed.slice(0, 5), ...tradeEvents.slice(0, 5)]
+    .sort(sortByDayThenTs);
+
+  const dedup = [];
+  const seen = new Set();
+  for (const event of combined) {
+    const dedupKey = `${event.kind}|${event.key}`;
+    if (seen.has(dedupKey)) {
+      continue;
+    }
+    seen.add(dedupKey);
+    dedup.push(event);
+  }
+  return dedup;
+}
+
+function renderTimelineEvents(result) {
+  if (!dom.analysisEventStrip || !dom.analysisEventSummary) {
+    return;
+  }
+
+  const events = buildTimelineEvents(result);
+  analysisState.timelineEvents = events;
+  dom.analysisEventSummary.textContent = `${events.length} markers`;
+  dom.analysisEventStrip.innerHTML = "";
+
+  if (events.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "status";
+    empty.textContent = "No notable events for current filters.";
+    dom.analysisEventStrip.appendChild(empty);
+    return;
+  }
+
+  for (const event of events) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = `analysis-event-chip ${event.kind}`;
+    chip.dataset.key = event.key;
+    chip.textContent = `D${event.day} T${event.timestamp} ${event.label}`;
+    dom.analysisEventStrip.appendChild(chip);
+  }
+
+  updateTimelineChipSelection();
+}
+
+function selectTimestampByIndex(rows, index) {
+  selectTimestampFromIndex(rows, index);
+  renderAnalysisInspector(analysisState.activeResult);
+  renderAnalysisFillsTable(analysisState.activeResult);
+  renderMissedOpportunities(analysisState.activeResult);
+  applySelectionCrosshair();
+  updateTimelineChipSelection();
+}
+
 function csvEscape(value) {
   if (value == null) {
     return "";
@@ -257,6 +521,559 @@ function renderPortfolioChart(points) {
     },
     { responsive: true, displaylogo: false }
   );
+}
+
+function buildAnalysisOptions(points) {
+  const products = [...new Set(points.map((p) => p.product))].sort();
+  const productExists = products.includes(analysisState.product);
+
+  if (!productExists) {
+    analysisState.product = products[0] || "ALL";
+  }
+
+  dom.analysisProduct.innerHTML = "";
+  for (const product of products) {
+    const option = document.createElement("option");
+    option.value = product;
+    option.textContent = product;
+    if (product === analysisState.product) {
+      option.selected = true;
+    }
+    dom.analysisProduct.appendChild(option);
+  }
+}
+
+function getProductPoints(points, product) {
+  return points.filter((p) => p.product === product).sort(sortByDayThenTs);
+}
+
+function getFilteredAnalysisFills(fills, product) {
+  const side = analysisState.side;
+  const minQty = Number.isFinite(analysisState.minQty) ? analysisState.minQty : 0;
+
+  return fills
+    .filter((f) => f.product === product)
+    .filter((f) => side === "ALL" || f.side === side)
+    .filter((f) => f.quantity >= minQty)
+    .sort(sortByDayThenTs);
+}
+
+function updateAnalysisPointLookup(points) {
+  analysisState.pointLookup = new Map();
+  for (const point of points) {
+    analysisState.pointLookup.set(parseProductKey(point), point);
+  }
+}
+
+function pointForFill(fill) {
+  return analysisState.pointLookup.get(`${fill.product}|${fill.day}|${fill.timestamp}`) || null;
+}
+
+function selectedRowFromPoints(rows) {
+  if (rows.length === 0) {
+    return null;
+  }
+  if (!analysisState.selectedKey) {
+    return rows[rows.length - 1];
+  }
+  return rows.find((r) => parseKey(r) === analysisState.selectedKey) || rows[rows.length - 1];
+}
+
+function selectTimestampFromIndex(rows, index) {
+  if (index == null || index < 0 || index >= rows.length) {
+    return;
+  }
+  analysisState.selectedKey = parseKey(rows[index]);
+}
+
+function buildSelectionShape(index, yref = "paper") {
+  if (index == null || index < 0) {
+    return [];
+  }
+  return [
+    {
+      type: "line",
+      xref: "x",
+      yref,
+      x0: index,
+      x1: index,
+      y0: 0,
+      y1: yref === "paper" ? 1 : 0,
+      line: { color: "#0f766e", width: 1.5, dash: "dot" },
+    },
+  ];
+}
+
+function renderAnalysisBookChart(result) {
+  const product = analysisState.product;
+  const productPoints = getProductPoints(result.points, product);
+  analysisState.bookRows = productPoints;
+
+  const axis = buildTimeAxis(productPoints);
+  const indexByKey = new Map(productPoints.map((p, idx) => [parseKey(p), idx]));
+  const selected = selectedRowFromPoints(productPoints);
+  const selectedIndex = selected ? indexByKey.get(parseKey(selected)) : null;
+
+  const productFills = getFilteredAnalysisFills(result.fills, product);
+  const fillX = [];
+  const normalizedFillY = [];
+  const fillText = [];
+  for (const fill of productFills) {
+    const idx = indexByKey.get(parseFillKey(fill));
+    if (idx === undefined) {
+      continue;
+    }
+    const point = pointForFill(fill);
+    const normalizedPrice = normalizePrice(product, point, fill.price);
+    if (normalizedPrice == null) {
+      continue;
+    }
+    fillX.push(idx);
+    normalizedFillY.push(normalizedPrice);
+    fillText.push(`${fill.side} q=${fill.quantity}`);
+  }
+
+  const marketTrades = (result.market_trades || [])
+    .filter((t) => t.product === product)
+    .filter((t) => {
+      const key = `${t.day}|${t.timestamp}`;
+      return indexByKey.has(key);
+    });
+
+  const marketX = marketTrades.map((t) => indexByKey.get(`${t.day}|${t.timestamp}`));
+  const marketY = marketTrades.map((t) => {
+    const point = analysisState.pointLookup.get(`${product}|${t.day}|${t.timestamp}`) || null;
+    return normalizePrice(product, point, t.price);
+  });
+
+  const getLevel = (point, side, level) => {
+    const prices = side === "bid" ? point.bid_prices : point.ask_prices;
+    if (!prices || prices.length <= level) {
+      return null;
+    }
+    return normalizePrice(product, point, prices[level]);
+  };
+
+  const bidL1 = productPoints.map((p) => getLevel(p, "bid", 0));
+  const bidL2 = productPoints.map((p) => getLevel(p, "bid", 1));
+  const bidL3 = productPoints.map((p) => getLevel(p, "bid", 2));
+  const askL1 = productPoints.map((p) => getLevel(p, "ask", 0));
+  const askL2 = productPoints.map((p) => getLevel(p, "ask", 1));
+  const askL3 = productPoints.map((p) => getLevel(p, "ask", 2));
+
+  const levelMeta = (point, side, level) => {
+    const volumes = side === "bid" ? point.bid_volumes : point.ask_volumes;
+    const qty = volumes && volumes.length > level ? volumes[level] : null;
+    return `D${point.day} T${point.timestamp} q=${qty == null ? "n/a" : qty}`;
+  };
+
+  const traces = [
+    {
+      type: "scatter",
+      mode: "lines",
+      name: "Bid L1",
+      x: axis.x,
+      y: bidL1,
+      line: { color: "#2563eb", width: 2 },
+      customdata: productPoints.map((p) => levelMeta(p, "bid", 0)),
+      hovertemplate: "%{customdata}<br>Bid L1=%{y:.2f}<extra></extra>",
+    },
+    {
+      type: "scatter",
+      mode: "lines",
+      name: "Bid L2",
+      x: axis.x,
+      y: bidL2,
+      line: { color: "#60a5fa", width: 1.5, dash: "dot" },
+      customdata: productPoints.map((p) => levelMeta(p, "bid", 1)),
+      hovertemplate: "%{customdata}<br>Bid L2=%{y:.2f}<extra></extra>",
+    },
+    {
+      type: "scatter",
+      mode: "lines",
+      name: "Bid L3",
+      x: axis.x,
+      y: bidL3,
+      line: { color: "#93c5fd", width: 1.5, dash: "dash" },
+      customdata: productPoints.map((p) => levelMeta(p, "bid", 2)),
+      hovertemplate: "%{customdata}<br>Bid L3=%{y:.2f}<extra></extra>",
+    },
+    {
+      type: "scatter",
+      mode: "lines",
+      name: "Ask L1",
+      x: axis.x,
+      y: askL1,
+      line: { color: "#dc2626", width: 2 },
+      customdata: productPoints.map((p) => levelMeta(p, "ask", 0)),
+      hovertemplate: "%{customdata}<br>Ask L1=%{y:.2f}<extra></extra>",
+    },
+    {
+      type: "scatter",
+      mode: "lines",
+      name: "Ask L2",
+      x: axis.x,
+      y: askL2,
+      line: { color: "#f87171", width: 1.5, dash: "dot" },
+      customdata: productPoints.map((p) => levelMeta(p, "ask", 1)),
+      hovertemplate: "%{customdata}<br>Ask L2=%{y:.2f}<extra></extra>",
+    },
+    {
+      type: "scatter",
+      mode: "lines",
+      name: "Ask L3",
+      x: axis.x,
+      y: askL3,
+      line: { color: "#fca5a5", width: 1.5, dash: "dash" },
+      customdata: productPoints.map((p) => levelMeta(p, "ask", 2)),
+      hovertemplate: "%{customdata}<br>Ask L3=%{y:.2f}<extra></extra>",
+    },
+    {
+      type: "scatter",
+      mode: "markers",
+      name: "Own Fills",
+      x: fillX,
+      y: normalizedFillY,
+      text: fillText,
+      marker: {
+        size: productFills.map((f) => Math.max(7, Math.min(16, f.quantity + 5))),
+        color: productFills.map((f) => (f.side === "BUY" ? "#16a34a" : "#dc2626")),
+        line: { color: "#111827", width: 0.5 },
+      },
+      hovertemplate: "%{text}<br>Fill=%{y:.2f}<extra></extra>",
+    },
+    {
+      type: "scatter",
+      mode: "markers",
+      name: "Market Trades",
+      x: marketX,
+      y: marketY,
+      marker: { size: 5, color: "#6b7280", opacity: 0.6 },
+      hovertemplate: "Market Trade=%{y:.2f}<extra></extra>",
+    },
+  ];
+
+  Plotly.newPlot(
+    dom.analysisBookChart,
+    traces,
+    {
+      margin: { l: 56, r: 20, t: 10, b: 36 },
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(255,255,255,0.78)",
+      legend: { orientation: "h", y: 1.12 },
+      xaxis: {
+        title: "Time Index",
+        tickvals: axis.tickVals,
+        ticktext: axis.tickText,
+        showgrid: true,
+        gridcolor: "rgba(15,118,110,0.08)",
+      },
+      yaxis: {
+        title: getPriceAxisTitle(product),
+        range: computeRange([
+          ...bidL1,
+          ...bidL2,
+          ...bidL3,
+          ...askL1,
+          ...askL2,
+          ...askL3,
+          ...normalizedFillY,
+          ...marketY,
+        ]),
+        tickformat: analysisState.normalize === "raw" ? ",.0f" : ",.2f",
+        showgrid: true,
+        gridcolor: "rgba(15,118,110,0.09)",
+      },
+      shapes: buildSelectionShape(selectedIndex),
+    },
+    { responsive: true, displaylogo: false }
+  );
+
+  if (typeof dom.analysisBookChart.removeAllListeners === "function") {
+    dom.analysisBookChart.removeAllListeners("plotly_click");
+    dom.analysisBookChart.removeAllListeners("plotly_hover");
+  }
+  dom.analysisBookChart.on("plotly_click", (event) => {
+    if (!event || !event.points || event.points.length === 0) {
+      return;
+    }
+    const idx = Number(event.points[0].x);
+    selectTimestampByIndex(productPoints, idx);
+  });
+  dom.analysisBookChart.on("plotly_hover", (event) => {
+    if (!event || !event.points || event.points.length === 0) {
+      return;
+    }
+    const idx = Number(event.points[0].x);
+    selectTimestampByIndex(productPoints, idx);
+  });
+}
+
+function renderAnalysisPositionChart(result) {
+  const product = analysisState.product;
+  const productPoints = getProductPoints(result.points, product);
+  analysisState.positionRows = productPoints;
+  const stitched = stitchSeriesByDay(
+    productPoints.map((p) => ({ ...p, mtmSeries: p.product_mtm_pnl })),
+    "mtmSeries"
+  );
+  const axis = buildTimeAxis(productPoints);
+  const indexByKey = new Map(productPoints.map((p, idx) => [parseKey(p), idx]));
+  const selected = selectedRowFromPoints(productPoints);
+  const selectedIndex = selected ? indexByKey.get(parseKey(selected)) : null;
+
+  Plotly.newPlot(
+    dom.analysisPositionChart,
+    [
+      {
+        type: "scatter",
+        mode: "lines",
+        name: "Position",
+        x: axis.x,
+        y: productPoints.map((p) => p.position),
+        line: { color: "#7c3aed", width: 2 },
+        customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
+        hovertemplate: "%{customdata}<br>Position=%{y}<extra></extra>",
+        yaxis: "y1",
+      },
+      {
+        type: "scatter",
+        mode: "lines",
+        name: "Product PnL",
+        x: axis.x,
+        y: stitched.map((p) => p.stitchedValue),
+        line: { color: "#111827", width: 2, dash: "dot" },
+        customdata: stitched.map((p) => `D${p.day} T${p.timestamp}`),
+        hovertemplate: "%{customdata}<br>PnL=%{y:.2f}<extra></extra>",
+        yaxis: "y2",
+      },
+    ],
+    {
+      margin: { l: 56, r: 56, t: 10, b: 36 },
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(255,255,255,0.78)",
+      legend: { orientation: "h", y: 1.12 },
+      xaxis: {
+        title: "Time Index",
+        tickvals: axis.tickVals,
+        ticktext: axis.tickText,
+        showgrid: true,
+        gridcolor: "rgba(15,118,110,0.08)",
+      },
+      yaxis: {
+        title: "Position",
+        range: computeRange(productPoints.map((p) => p.position)),
+        showgrid: true,
+        gridcolor: "rgba(15,118,110,0.09)",
+      },
+      yaxis2: {
+        title: "PnL",
+        range: computeRange(stitched.map((p) => p.stitchedValue)),
+        overlaying: "y",
+        side: "right",
+        showgrid: false,
+      },
+      shapes: buildSelectionShape(selectedIndex),
+    },
+    { responsive: true, displaylogo: false }
+  );
+
+  if (typeof dom.analysisPositionChart.removeAllListeners === "function") {
+    dom.analysisPositionChart.removeAllListeners("plotly_click");
+    dom.analysisPositionChart.removeAllListeners("plotly_hover");
+  }
+  dom.analysisPositionChart.on("plotly_click", (event) => {
+    if (!event || !event.points || event.points.length === 0) {
+      return;
+    }
+    const idx = Number(event.points[0].x);
+    selectTimestampByIndex(productPoints, idx);
+  });
+  dom.analysisPositionChart.on("plotly_hover", (event) => {
+    if (!event || !event.points || event.points.length === 0) {
+      return;
+    }
+    const idx = Number(event.points[0].x);
+    selectTimestampByIndex(productPoints, idx);
+  });
+}
+
+function renderAnalysisInspector(result) {
+  const product = analysisState.product;
+  const productPoints = getProductPoints(result.points, product);
+  const selected = selectedRowFromPoints(productPoints);
+
+  if (!selected) {
+    dom.analysisSelectedTs.textContent = "Selected: none";
+    dom.analysisTimestampDetail.textContent = "No points available for analysis.";
+    dom.analysisStateDetail.textContent = "No traderData captured yet.";
+    return;
+  }
+
+  analysisState.selectedKey = parseKey(selected);
+  dom.analysisSelectedTs.textContent = `Selected: D${selected.day} T${selected.timestamp}`;
+
+  const fillsAtTs = result.fills.filter(
+    (f) => f.product === product && f.day === selected.day && f.timestamp === selected.timestamp
+  );
+  const marketAtTs = (result.market_trades || []).filter(
+    (t) => t.product === product && t.day === selected.day && t.timestamp === selected.timestamp
+  );
+
+  const detail = {
+    product,
+    day: selected.day,
+    timestamp: selected.timestamp,
+    best_bid: selected.best_bid,
+    best_ask: selected.best_ask,
+    spread: (selected.best_ask ?? 0) - (selected.best_bid ?? 0),
+    mid_price: selected.mid_price,
+    bid_levels: (selected.bid_prices || []).map((px, i) => ({ price: px, qty: (selected.bid_volumes || [])[i] ?? null })),
+    ask_levels: (selected.ask_prices || []).map((px, i) => ({ price: px, qty: (selected.ask_volumes || [])[i] ?? null })),
+    position: selected.position,
+    realized_pnl: Number(selected.realized_pnl).toFixed(2),
+    product_mtm_pnl: Number(selected.product_mtm_pnl).toFixed(2),
+    own_fills_count: fillsAtTs.length,
+    market_trades_count: marketAtTs.length,
+    own_fills: fillsAtTs,
+    market_trades: marketAtTs,
+  };
+
+  dom.analysisTimestampDetail.textContent = JSON.stringify(detail, null, 2);
+
+  const stateLog = (result.state_logs || []).find(
+    (s) => s.day === selected.day && s.timestamp === selected.timestamp
+  );
+  dom.analysisStateDetail.textContent = formatTraderData(stateLog ? stateLog.trader_data : "");
+}
+
+function renderAnalysisFillsTable(result) {
+  const product = analysisState.product;
+  const rows = getFilteredAnalysisFills(result.fills, product).slice(-180).reverse();
+
+  dom.analysisFillsTableBody.innerHTML = "";
+  for (const fill of rows) {
+    const point = pointForFill(fill);
+    const mid = point ? Number(point.mid_price) : null;
+    const edge = mid == null ? null : fill.side === "BUY" ? mid - fill.price : fill.price - mid;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${fill.seq}</td>
+      <td>${fill.day}</td>
+      <td>${fill.timestamp}</td>
+      <td>${fill.product}</td>
+      <td>${fill.side}</td>
+      <td>${fill.price}</td>
+      <td>${fill.quantity}</td>
+      <td>${edge == null ? "n/a" : fmtNumber(edge, 2)}</td>
+    `;
+    dom.analysisFillsTableBody.appendChild(tr);
+  }
+}
+
+function computeMissedOpportunities(result) {
+  const product = analysisState.product;
+  const sideFilter = analysisState.side;
+  const minQty = Number.isFinite(analysisState.minQty) ? analysisState.minQty : 0;
+
+  const ownByKeySide = new Map();
+  for (const fill of result.fills.filter((f) => f.product === product)) {
+    const key = `${fill.day}|${fill.timestamp}|${fill.side}`;
+    ownByKeySide.set(key, (ownByKeySide.get(key) || 0) + fill.quantity);
+  }
+
+  const events = [];
+  for (const trade of (result.market_trades || []).filter((t) => t.product === product)) {
+    const point = analysisState.pointLookup.get(`${product}|${trade.day}|${trade.timestamp}`) || null;
+    if (!point) {
+      continue;
+    }
+
+    const buyCross = point.best_bid != null && trade.price <= point.best_bid;
+    const sellCross = point.best_ask != null && trade.price >= point.best_ask;
+    if (!buyCross && !sellCross) {
+      continue;
+    }
+
+    const side = buyCross ? "BUY" : "SELL";
+    if (sideFilter !== "ALL" && sideFilter !== side) {
+      continue;
+    }
+
+    if (trade.quantity < minQty) {
+      continue;
+    }
+
+    const ownKey = `${trade.day}|${trade.timestamp}|${side}`;
+    const ownQty = ownByKeySide.get(ownKey) || 0;
+    const missedQty = Math.max(0, trade.quantity - ownQty);
+    if (missedQty <= 0) {
+      continue;
+    }
+
+    const edge = side === "BUY"
+      ? (point.best_bid - trade.price)
+      : (trade.price - point.best_ask);
+
+    events.push({
+      day: trade.day,
+      timestamp: trade.timestamp,
+      product,
+      side,
+      trade_price: trade.price,
+      trade_qty: trade.quantity,
+      own_qty: ownQty,
+      missed_qty: missedQty,
+      edge_vs_touch: edge,
+    });
+  }
+
+  return events.sort(sortByDayThenTs);
+}
+
+function renderMissedOpportunities(result) {
+  if (!dom.analysisMissedTableBody || !dom.analysisMissedCount) {
+    return;
+  }
+
+  const events = computeMissedOpportunities(result);
+  dom.analysisMissedCount.textContent = `${events.length} events`;
+  dom.analysisMissedTableBody.innerHTML = "";
+
+  for (const event of events.slice(-180).reverse()) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${event.day}</td>
+      <td>${event.timestamp}</td>
+      <td>${event.product}</td>
+      <td>${event.side}</td>
+      <td>${event.trade_price}</td>
+      <td>${event.trade_qty}</td>
+      <td>${event.own_qty}</td>
+      <td>${event.missed_qty}</td>
+      <td>${fmtNumber(event.edge_vs_touch, 2)}</td>
+    `;
+    dom.analysisMissedTableBody.appendChild(tr);
+  }
+}
+
+function renderAnalysis(result) {
+  if (!result || !result.points || result.points.length === 0) {
+    return;
+  }
+
+  analysisState.activeResult = result;
+
+  updateAnalysisPointLookup(result.points);
+  buildAnalysisOptions(result.points);
+  renderTimelineEvents(result);
+  renderAnalysisBookChart(result);
+  renderAnalysisPositionChart(result);
+  renderAnalysisInspector(result);
+  renderAnalysisFillsTable(result);
+  renderMissedOpportunities(result);
+  applySelectionCrosshair();
 }
 
 function renderProductCharts(points, fills) {
@@ -454,11 +1271,14 @@ async function runSimulation() {
     );
 
     const parsed = JSON.parse(rawResult);
+    parsed.market_trades = parsed.market_trades || [];
+    parsed.state_logs = parsed.state_logs || [];
     lastResult = parsed;
     renderPortfolioChart(parsed.points);
     renderProductCharts(parsed.points, parsed.fills);
     renderMetrics(parsed.metrics);
     renderFillsTable(parsed.fills);
+    renderAnalysis(parsed);
 
     setStatus(`Done. Processed ${parsed.points.length} points and ${parsed.fills.length} simulated fills.`);
   } catch (error) {
@@ -519,6 +1339,47 @@ function wireFileInputs() {
   });
 }
 
+function wireTabs() {
+  dom.tabOverviewBtn.addEventListener("click", () => setTab("overview"));
+  dom.tabAnalysisBtn.addEventListener("click", () => setTab("analysis"));
+}
+
+function wireAnalysisControls() {
+  dom.analysisProduct.addEventListener("change", () => {
+    analysisState.product = dom.analysisProduct.value;
+    analysisState.selectedKey = null;
+    renderAnalysis(lastResult);
+  });
+
+  dom.analysisSide.addEventListener("change", () => {
+    analysisState.side = dom.analysisSide.value;
+    renderAnalysis(lastResult);
+  });
+
+  dom.analysisMinQty.addEventListener("input", () => {
+    const value = Number.parseInt(dom.analysisMinQty.value, 10);
+    analysisState.minQty = Number.isFinite(value) && value >= 0 ? value : 0;
+    renderAnalysis(lastResult);
+  });
+
+  dom.analysisNormalize.addEventListener("change", () => {
+    analysisState.normalize = dom.analysisNormalize.value;
+    renderAnalysis(lastResult);
+  });
+
+  dom.analysisEventStrip.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    if (!target.classList.contains("analysis-event-chip")) {
+      return;
+    }
+    const key = target.dataset.key;
+    selectTimestampByKey(analysisState.bookRows, key);
+  });
+}
+
 function wireExportButtons() {
   dom.exportFillsCsv.addEventListener("click", () => {
     if (lastResult.fills.length === 0) {
@@ -576,6 +1437,9 @@ async function main() {
   renderDataFiles();
   wireFileInputs();
   wireExportButtons();
+  wireTabs();
+  wireAnalysisControls();
+  setTab("overview");
   dom.runButton.addEventListener("click", runSimulation);
 
   try {

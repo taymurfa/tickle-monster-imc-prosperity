@@ -41,6 +41,47 @@ body {
   min-height: 100vh;
 }
 
+.workspace {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  min-height: 0;
+}
+
+.top-tabs {
+  display: flex;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: var(--shadow);
+}
+
+.tab-btn {
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 12px;
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.tab-btn.active {
+  color: #fff;
+  background: linear-gradient(120deg, var(--accent), #0e9f6e);
+}
+
+.tab-pane {
+  display: none;
+}
+
+.tab-pane.active {
+  display: grid;
+}
+
 .sidebar,
 .chart-card,
 .table-card {
@@ -184,6 +225,82 @@ body {
   gap: 20px;
 }
 
+.analysis-content {
+  gap: 16px;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto minmax(280px, 320px) minmax(280px, 320px) minmax(220px, auto) minmax(220px, 300px) minmax(220px, 300px);
+}
+
+.analysis-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.analysis-chart {
+  width: 100%;
+  height: 250px;
+}
+
+.analysis-event-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.analysis-event-chip {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-family: "IBM Plex Mono", monospace;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.analysis-event-chip.pnl {
+  border-color: rgba(217, 119, 6, 0.45);
+  background: rgba(217, 119, 6, 0.12);
+}
+
+.analysis-event-chip.missed {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.analysis-event-chip.trade {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.analysis-event-chip.active {
+  border-color: rgba(15, 118, 110, 0.9);
+  box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.35) inset;
+}
+
+.analysis-detail {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 10px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  max-height: 160px;
+  overflow: auto;
+  font-family: "IBM Plex Mono", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.analysis-subtitle {
+  margin: 10px 0 8px;
+  font-size: 0.9rem;
+}
+
 .chart-card,
 .table-card {
   padding: 14px;
@@ -274,5 +391,13 @@ th {
 
   .content {
     grid-template-rows: minmax(240px, auto) minmax(400px, auto) minmax(220px, auto);
+  }
+
+  .analysis-content {
+    grid-template-rows: auto auto minmax(240px, auto) minmax(240px, auto) minmax(200px, auto) minmax(220px, auto) minmax(220px, auto);
+  }
+
+  .analysis-filters-grid {
+    grid-template-columns: 1fr;
   }
 }
