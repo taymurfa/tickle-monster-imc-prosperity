@@ -187,22 +187,47 @@ function stitchSeriesByDay(rows, valueKey) {
 }
 
 function buildTimeAxis(rows) {
-  const tickCount = 10;
+  const tickCount = 9;
   const x = rows.map((_, idx) => idx);
   if (rows.length === 0) {
     return { x, tickVals: [], tickText: [] };
   }
 
-  const stride = Math.max(1, Math.floor(rows.length / tickCount));
-  const tickVals = [];
-  const tickText = [];
-  for (let i = 0; i < rows.length; i += stride) {
-    tickVals.push(i);
-    tickText.push(`D${rows[i].day} T${rows[i].timestamp}`);
+  const compactTs = (timestamp) => {
+    const abs = Math.abs(timestamp);
+    if (abs >= 1_000_000) {
+      return `${(timestamp / 1_000_000).toFixed(1)}M`;
+    }
+    if (abs >= 1_000) {
+      return `${(timestamp / 1_000).toFixed(0)}k`;
+    }
+    return String(timestamp);
+  };
+
+  const indices = new Set([0, rows.length - 1]);
+  if (rows.length > 2) {
+    for (let i = 0; i < tickCount; i += 1) {
+      const q = i / (tickCount - 1);
+      const idx = Math.round(q * (rows.length - 1));
+      indices.add(idx);
+    }
   }
-  if (tickVals[tickVals.length - 1] !== rows.length - 1) {
-    tickVals.push(rows.length - 1);
-    tickText.push(`D${rows[rows.length - 1].day} T${rows[rows.length - 1].timestamp}`);
+
+  const tickVals = [...indices].sort((a, b) => a - b);
+  const tickText = tickVals.map((idx) => `D${rows[idx].day} T${compactTs(rows[idx].timestamp)}`);
+
+  if (tickVals.length > 10) {
+    const reduced = [];
+    for (let i = 0; i < tickVals.length; i += 1) {
+      if (i % 2 === 0 || i === tickVals.length - 1) {
+        reduced.push(i);
+      }
+    }
+    return {
+      x,
+      tickVals: reduced.map((i) => tickVals[i]),
+      tickText: reduced.map((i) => tickText[i]),
+    };
   }
 
   return { x, tickVals, tickText };
