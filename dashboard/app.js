@@ -666,6 +666,7 @@ function renderAnalysisBookChart(result) {
   if (dom.analysisBookMode) {
     dom.analysisBookMode.textContent = resolvedBookMode === "fixed" ? "Mode: Fixed Edge View" : "Mode: Standard Price View";
   }
+  const yAxisTitle = resolvedBookMode === "fixed" ? "Edge vs Fair Value" : getPriceAxisTitle(product);
 
   const axis = buildTimeAxis(productPoints);
   const indexByKey = new Map(productPoints.map((p, idx) => [parseKey(p), idx]));
@@ -674,7 +675,7 @@ function renderAnalysisBookChart(result) {
 
   const productFills = getFilteredAnalysisFills(result.fills, product);
   const fillX = [];
-  const normalizedFillY = [];
+  let normalizedFillY = [];
   const fillText = [];
   for (const fill of productFills) {
     const idx = indexByKey.get(parseFillKey(fill));
@@ -719,10 +720,10 @@ function renderAnalysisBookChart(result) {
   let midSeries = productPoints.map((p) => normalizePrice(product, p, p.mid_price));
   let bidL1 = productPoints.map((p) => getLevelPrice(p, "bid", 0));
   let askL1 = productPoints.map((p) => getLevelPrice(p, "ask", 0));
-  const bidL2 = productPoints.map((p) => getLevelPrice(p, "bid", 1));
-  const bidL3 = productPoints.map((p) => getLevelPrice(p, "bid", 2));
-  const askL2 = productPoints.map((p) => getLevelPrice(p, "ask", 1));
-  const askL3 = productPoints.map((p) => getLevelPrice(p, "ask", 2));
+  let bidL2 = productPoints.map((p) => getLevelPrice(p, "bid", 1));
+  let bidL3 = productPoints.map((p) => getLevelPrice(p, "bid", 2));
+  let askL2 = productPoints.map((p) => getLevelPrice(p, "ask", 1));
+  let askL3 = productPoints.map((p) => getLevelPrice(p, "ask", 2));
 
   if (resolvedBookMode === "fixed") {
     const fair = inferReferencePrice(product, productPoints[0]);
@@ -737,6 +738,10 @@ function renderAnalysisBookChart(result) {
     midSeries = midSeries.map(toEdge);
     bidL1 = bidL1.map(toEdge);
     askL1 = askL1.map(toEdge);
+    bidL2 = bidL2.map(toEdge);
+    bidL3 = bidL3.map(toEdge);
+    askL2 = askL2.map(toEdge);
+    askL3 = askL3.map(toEdge);
     normalizedFillY = normalizedFillY.map(toEdge);
   }
 
