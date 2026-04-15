@@ -41,6 +41,21 @@ const dom = {
   analysisMissedTableBody: document.querySelector("#analysisMissedTable tbody"),
   analysisMissedCount: document.getElementById("analysisMissedCount"),
   tradeCount: document.getElementById("tradeCount"),
+  performanceMode: document.getElementById("performanceMode"),
+  runLabel: document.getElementById("runLabel"),
+  pinRunButton: document.getElementById("pinRunButton"),
+  savedRunsList: document.getElementById("savedRunsList"),
+  clearPinnedRuns: document.getElementById("clearPinnedRuns"),
+  sizeBucket: document.getElementById("sizeBucket"),
+  showOwnFills: document.getElementById("showOwnFills"),
+  showMarketTrades: document.getElementById("showMarketTrades"),
+  classifyTrades: document.getElementById("classifyTrades"),
+  overlayCheckboxes: document.getElementById("overlayCheckboxes"),
+  overlayStatus: document.getElementById("overlayStatus"),
+  indicatorChart: document.getElementById("indicatorChart"),
+  syntheticFormula: document.getElementById("syntheticFormula"),
+  syntheticRun: document.getElementById("syntheticRun"),
+  syntheticChart: document.getElementById("syntheticChart"),
   metrics: {
     finalPnl: document.getElementById("metricFinalPnl"),
     maxDd: document.getElementById("metricMaxDd"),
@@ -61,6 +76,20 @@ let lastResult = {
   metrics: {},
 };
 
+// ── multi-run comparison ─────────────────────────────────────────────────────
+const savedRuns = [];
+const RUN_PALETTE = ["#0891b2", "#7c3aed", "#d97706", "#16a34a", "#dc2626", "#db2777"];
+
+// ── performance / downsampling ────────────────────────────────────────────────
+let performanceMode = "full";
+
+// ── indicator overlay ─────────────────────────────────────────────────────────
+const overlayState = {
+  enabledKeys: new Set(),
+  availableKeys: [],
+};
+const INDICATOR_COLORS = ["#0891b2", "#7c3aed", "#b45309", "#16a34a", "#dc2626", "#6b7280", "#0f766e", "#d97706"];
+
 const analysisState = {
   product: "ALL",
   side: "ALL",
@@ -74,11 +103,304 @@ const analysisState = {
   timelineEvents: [],
   pointLookup: new Map(),
   activeResult: null,
+  // feature: rich trade filtering
+  showOwnFills: true,
+  showMarketTrades: true,
+  classifyTrades: false,
+  sizeBucket: "all",
 };
 
 const FIXED_VALUE_PRODUCTS = {
   EMERALDS: 10000,
 };
+
+// ── centralised Plotly dark-theme layout defaults ────────────────────────────
+const CHART_BG   = "rgba(0,0,0,0)";
+const PLOT_BG    = "#1A1A22";
+const GRID_COLOR = "rgba(255,255,255,0.05)";
+const FONT_COLOR = "#8E8E9E";
+const SPIKE_COLOR = "#00C805";
+
+function baseLayout(extra = {}) {
+  return {
+    paper_bgcolor: CHART_BG,
+    plot_bgcolor:  PLOT_BG,
+    font: { color: FONT_COLOR, family: "IBM Plex Mono, monospace", size: 11 },
+    margin: { l: 56, r: 20, t: 8, b: 36 },
+    hovermode: "x unified",
+    hoverdistance: -1,
+    spikedistance: -1,
+    legend: { font: { size: 10, color: FONT_COLOR }, bgcolor: "rgba(0,0,0,0)" },
+    xaxis: {
+      showgrid: true,
+      gridcolor: GRID_COLOR,
+      zeroline: false,
+      color: FONT_COLOR,
+      tickfont: { size: 10 },
+    },
+    yaxis: {
+      showgrid: true,
+      gridcolor: GRID_COLOR,
+      zeroline: false,
+      color: FONT_COLOR,
+      tickfont: { size: 10 },
+    },
+    ...extra,
+  };
+}
+
+// ── performance: downsample points, always keeping points that have fills ────
+function samplePoints(points, fills, mode) {
+  if (mode === "full" || points.length <= 500) {
+    return points;
+  }
+  const step = mode === "medium" ? 2 : 5;
+  const importantKeys = new Set(fills.map((f) => `${f.day}|${f.timestamp}`));
+  return points.filter(
+    (p, i) => i % step === 0 || i === points.length - 1 || importantKeys.has(parseKey(p))
+  );
+}
+
+// ── trade classification ──────────────────────────────────────────────────────
+function classifyTradeDirection(trade, point) {
+  if (!point) return "unknown";
+  if (point.best_ask != null && trade.price >= point.best_ask) return "aggressiveBuy";
+  if (point.best_bid != null && trade.price <= point.best_bid) return "aggressiveSell";
+  return "passive";
+}
+
+function tradeClassificationColor(direction) {
+  if (direction === "aggressiveBuy") return "#dc2626";
+  if (direction === "aggressiveSell") return "#2563eb";
+  return "#9ca3af";
+}
+
+// ── size bucket filter ────────────────────────────────────────────────────────
+function sizeBucketMatch(qty, bucket) {
+  if (bucket === "all") return true;
+  if (bucket === "small") return qty >= 1 && qty <= 5;
+  if (bucket === "medium") return qty >= 6 && qty <= 15;
+  if (bucket === "large") return qty > 15;
+  return true;
+}
+
+// ── indicator overlay: extract numeric keys from traderData JSON ──────────────
+function extractIndicatorFields(stateLogs) {
+  const fieldMap = new Map();
+  for (const log of stateLogs) {
+    if (!log.trader_data) continue;
+    let parsed;
+    try { parsed = JSON.parse(log.trader_data); } catch { continue; }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) continue;
+    for (const [key, val] of Object.entries(parsed)) {
+      if (typeof val === "number" && Number.isFinite(val)) {
+        if (!fieldMap.has(key)) fieldMap.set(key, []);
+        fieldMap.get(key).push({ day: log.day, timestamp: log.timestamp, value: val });
+      }
+    }
+  }
+  return fieldMap;
+}
+
+function buildIndicatorCheckboxes(result) {
+  const fields = extractIndicatorFields(result.state_logs || []);
+  overlayState.availableKeys = [...fields.keys()];
+
+  const container = dom.overlayCheckboxes;
+  const statusEl = dom.overlayStatus;
+  if (!container) return;
+
+  // Remove keys that no longer exist
+  for (const key of overlayState.enabledKeys) {
+    if (!overlayState.availableKeys.includes(key)) overlayState.enabledKeys.delete(key);
+  }
+
+  container.innerHTML = "";
+  if (overlayState.availableKeys.length === 0) {
+    if (statusEl) statusEl.textContent = "No numeric fields in traderData JSON";
+    if (dom.indicatorChart) dom.indicatorChart.style.display = "none";
+    return;
+  }
+  if (statusEl) statusEl.textContent = `${overlayState.availableKeys.length} fields available`;
+
+  for (const [i, key] of overlayState.availableKeys.entries()) {
+    const color = INDICATOR_COLORS[i % INDICATOR_COLORS.length];
+    const label = document.createElement("label");
+    label.className = "toggle-label";
+    label.style.borderColor = color;
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.dataset.key = key;
+    cb.checked = overlayState.enabledKeys.has(key);
+    cb.style.accentColor = color;
+    cb.addEventListener("change", () => {
+      if (cb.checked) overlayState.enabledKeys.add(key);
+      else overlayState.enabledKeys.delete(key);
+      renderIndicatorChart(result);
+    });
+    label.appendChild(cb);
+    label.append(` ${key}`);
+    container.appendChild(label);
+  }
+
+  renderIndicatorChart(result);
+}
+
+function renderIndicatorChart(result) {
+  const chartEl = dom.indicatorChart;
+  if (!chartEl) return;
+
+  const enabledKeys = [...overlayState.enabledKeys];
+  if (enabledKeys.length === 0) {
+    chartEl.style.display = "none";
+    if (chartEl._hasPlot) { Plotly.purge(chartEl); chartEl._hasPlot = false; }
+    return;
+  }
+
+  chartEl.style.display = "";
+  const fields = extractIndicatorFields(result.state_logs || []);
+  const productPoints = getProductPoints(result.points, analysisState.product);
+  const indexByKey = new Map(productPoints.map((p, idx) => [parseKey(p), idx]));
+  const axis = buildTimeAxis(productPoints);
+
+  const traces = enabledKeys.map((key, i) => {
+    const series = fields.get(key) || [];
+    const color = INDICATOR_COLORS[i % INDICATOR_COLORS.length];
+    const pts = series.filter((pt) => indexByKey.has(`${pt.day}|${pt.timestamp}`));
+    return {
+      type: "scatter",
+      mode: "lines",
+      name: key,
+      x: pts.map((pt) => indexByKey.get(`${pt.day}|${pt.timestamp}`)),
+      y: pts.map((pt) => pt.value),
+      line: { color, width: 1.8 },
+      hovertemplate: `${key}=%{y:.4f}<extra></extra>`,
+    };
+  });
+
+  const allY = traces.flatMap((t) => t.y);
+
+  Plotly.newPlot(
+    chartEl,
+    traces,
+    baseLayout({
+      legend: { orientation: "h", y: 1.14, font: { size: 10, color: FONT_COLOR }, bgcolor: "rgba(0,0,0,0)" },
+      xaxis: { title: "Time", tickvals: axis.tickVals, ticktext: axis.tickText, showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+      yaxis: { title: "Indicator", range: computeRange(allY), showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+    }),
+    { responsive: true, displaylogo: false }
+  );
+  chartEl._hasPlot = true;
+}
+
+// ── multi-run comparison ──────────────────────────────────────────────────────
+function pinCurrentRun() {
+  if (!lastResult.points || lastResult.points.length === 0) {
+    setStatus("No run to pin — run a simulation first.", true);
+    return;
+  }
+  const label = (dom.runLabel?.value || "").trim() || `Run ${savedRuns.length + 1}`;
+  const color = RUN_PALETTE[savedRuns.length % RUN_PALETTE.length];
+  savedRuns.push({ label, color, points: lastResult.points, fills: lastResult.fills, metrics: lastResult.metrics });
+  if (dom.runLabel) dom.runLabel.value = "";
+  renderSavedRunsList();
+  renderPortfolioChart(lastResult.points);
+  setStatus(`Pinned run: "${label}"`);
+}
+
+function renderSavedRunsList() {
+  const list = dom.savedRunsList;
+  if (!list) return;
+  list.innerHTML = "";
+  if (savedRuns.length === 0) return;
+  for (let i = 0; i < savedRuns.length; i++) {
+    const run = savedRuns[i];
+    const li = document.createElement("li");
+    li.className = "saved-run-item";
+    li.innerHTML = `
+      <span class="run-dot" style="background:${run.color}"></span>
+      <span style="flex:1">${run.label}</span>
+      <span style="color:var(--muted);font-size:0.75rem">${fmtNumber(run.metrics?.final_pnl ?? 0, 0)} PnL</span>
+      <button class="btn small-btn" data-idx="${i}" style="padding:2px 7px;font-size:0.72rem">✕</button>
+    `;
+    li.querySelector("button").addEventListener("click", () => {
+      savedRuns.splice(i, 1);
+      renderSavedRunsList();
+      renderPortfolioChart(lastResult.points);
+    });
+    list.appendChild(li);
+  }
+}
+
+// ── synthetic / spread view ───────────────────────────────────────────────────
+function computeSyntheticSeries(formula, points) {
+  const products = [...new Set(points.map((p) => p.product))];
+  const tsMap = new Map();
+  for (const pt of points) {
+    const key = `${pt.day}|${pt.timestamp}`;
+    if (!tsMap.has(key)) tsMap.set(key, { day: pt.day, timestamp: pt.timestamp });
+    tsMap.get(key)[pt.product] = pt.mid_price;
+  }
+
+  const result = [];
+  for (const [, vars] of tsMap) {
+    let expr = formula;
+    let valid = true;
+    for (const product of products) {
+      if (expr.includes(product)) {
+        const val = vars[product];
+        if (val === undefined) { valid = false; break; }
+        expr = expr.replaceAll(product, String(val));
+      }
+    }
+    if (!valid) continue;
+    try {
+      // eslint-disable-next-line no-new-func
+      const val = new Function(`return (${expr})`)();
+      if (Number.isFinite(val)) {
+        result.push({ day: vars.day, timestamp: vars.timestamp, value: val });
+      }
+    } catch { /* invalid formula at this point */ }
+  }
+  return result.sort(sortByDayThenTs);
+}
+
+function renderSyntheticChart(formula, points) {
+  const chartEl = dom.syntheticChart;
+  if (!chartEl) return;
+
+  if (!formula.trim() || points.length === 0) {
+    chartEl.style.display = "none";
+    return;
+  }
+
+  const series = computeSyntheticSeries(formula, points);
+  if (series.length === 0) {
+    chartEl.style.display = "none";
+    setStatus("Synthetic: formula produced no data. Check product names.", true);
+    return;
+  }
+
+  const stitched = stitchSeriesByDay(series.map((s) => ({ ...s, sv: s.value })), "sv");
+  const axis = buildTimeAxis(series);
+  const yVals = stitched.map((s) => s.stitchedValue);
+  chartEl.style.display = "";
+
+  Plotly.newPlot(
+    chartEl,
+    [{
+      type: "scatter", mode: "lines", name: formula,
+      x: axis.x, y: yVals,
+      line: { color: "#00C805", width: 2 },
+      hovertemplate: `val=%{y:.4f}<extra></extra>`,
+    }],
+    baseLayout({
+      xaxis: { title: "Time", tickvals: axis.tickVals, ticktext: axis.tickText, showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+      yaxis: { title: "Value", range: computeRange(yVals), showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+    }),
+    { responsive: true, displaylogo: false }
+  );
+}
 
 function fmtNumber(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -537,41 +859,52 @@ function renderPortfolioChart(points) {
   const axis = buildTimeAxis(rows);
   const yValues = rows.map((r) => r.stitchedValue);
 
+  // Primary trace (current run)
   const traces = [
     {
       type: "scatter",
       mode: "lines",
-      name: "PnL",
+      name: "Current",
       x: axis.x,
       y: yValues,
-      line: { color: "#111827", width: 2 },
+      line: { color: "#00C805", width: 2 },
       customdata: rows.map((r) => `D${r.day} T${r.timestamp}`),
       hovertemplate: "%{customdata}<br>PnL=%{y:.2f}<extra></extra>",
     },
   ];
 
+  // Pinned runs overlaid as faded traces (normalised to same length scale)
+  for (const run of savedRuns) {
+    const runTracker = new Map();
+    for (const pt of run.points) {
+      runTracker.set(parseKey(pt), { day: pt.day, timestamp: pt.timestamp, value: pt.portfolio_mtm_pnl });
+    }
+    const runRows = stitchSeriesByDay([...runTracker.values()].sort(sortByDayThenTs), "value");
+    // normalise x to same 0-N scale as current run for visual comparison
+    const scaleRatio = rows.length > 1 ? (rows.length - 1) / Math.max(runRows.length - 1, 1) : 1;
+    traces.push({
+      type: "scatter",
+      mode: "lines",
+      name: run.label,
+      x: runRows.map((_, i) => i * scaleRatio),
+      y: runRows.map((r) => r.stitchedValue),
+      line: { color: run.color, width: 1.5, dash: "dot" },
+      opacity: 0.65,
+      hovertemplate: `${run.label}<br>PnL=%{y:.2f}<extra></extra>`,
+    });
+  }
+
   Plotly.newPlot(
     dom.portfolioChart,
     traces,
-    {
-      margin: { l: 60, r: 20, t: 10, b: 36 },
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(255,255,255,0.78)",
-      xaxis: {
-        title: "Time Index",
-        tickvals: axis.tickVals,
-        ticktext: axis.tickText,
-        showgrid: true,
-        gridcolor: "rgba(15,118,110,0.08)",
-      },
-      yaxis: {
-        title: "PnL",
-        range: computeRange(yValues),
-        tickformat: ",.0f",
-        showgrid: true,
-        gridcolor: "rgba(15,118,110,0.09)",
-      },
-    },
+    baseLayout({
+      margin: { l: 56, r: 20, t: savedRuns.length > 0 ? 28 : 8, b: 36 },
+      legend: savedRuns.length > 0
+        ? { orientation: "h", y: 1.14, font: { size: 10, color: FONT_COLOR }, bgcolor: "rgba(0,0,0,0)" }
+        : { visible: false },
+      xaxis: { title: "Time", tickvals: axis.tickVals, ticktext: axis.tickText, showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+      yaxis: { title: "PnL", range: computeRange(yValues), tickformat: ",.0f", showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+    }),
     { responsive: true, displaylogo: false }
   );
 }
@@ -659,7 +992,10 @@ function buildSelectionShape(index, yref = "paper") {
 
 function renderAnalysisBookChart(result) {
   const product = analysisState.product;
-  const productPoints = getProductPoints(result.points, product);
+  const rawProductPoints = getProductPoints(result.points, product);
+  // Feature 5: downsampling — preserve fill timestamps
+  const productFillsForSampling = getFilteredAnalysisFills(result.fills, product);
+  const productPoints = samplePoints(rawProductPoints, productFillsForSampling, performanceMode);
   analysisState.bookRows = productPoints;
 
   const resolvedBookMode = resolveBookViewMode(product, productPoints);
@@ -677,32 +1013,45 @@ function renderAnalysisBookChart(result) {
   const fillX = [];
   let normalizedFillY = [];
   const fillText = [];
-  for (const fill of productFills) {
-    const idx = indexByKey.get(parseFillKey(fill));
-    if (idx === undefined) {
-      continue;
+  // Feature 2: honour showOwnFills toggle
+  if (analysisState.showOwnFills) {
+    for (const fill of productFills) {
+      const idx = indexByKey.get(parseFillKey(fill));
+      if (idx === undefined) {
+        continue;
+      }
+      const point = pointForFill(fill);
+      const normalizedPrice = normalizePrice(product, point, fill.price);
+      if (normalizedPrice == null) {
+        continue;
+      }
+      fillX.push(idx);
+      normalizedFillY.push(normalizedPrice);
+      fillText.push(`${fill.side} q=${fill.quantity}`);
     }
-    const point = pointForFill(fill);
-    const normalizedPrice = normalizePrice(product, point, fill.price);
-    if (normalizedPrice == null) {
-      continue;
-    }
-    fillX.push(idx);
-    normalizedFillY.push(normalizedPrice);
-    fillText.push(`${fill.side} q=${fill.quantity}`);
   }
 
+  // Feature 2: filter market trades by size bucket; classify if requested
   const marketTrades = (result.market_trades || [])
     .filter((t) => t.product === product)
-    .filter((t) => {
-      const key = `${t.day}|${t.timestamp}`;
-      return indexByKey.has(key);
-    });
+    .filter((t) => indexByKey.has(`${t.day}|${t.timestamp}`))
+    .filter((t) => sizeBucketMatch(t.quantity, analysisState.sizeBucket));
 
   const marketX = marketTrades.map((t) => indexByKey.get(`${t.day}|${t.timestamp}`));
   let marketY = marketTrades.map((t) => {
     const point = analysisState.pointLookup.get(`${product}|${t.day}|${t.timestamp}`) || null;
     return normalizePrice(product, point, t.price);
+  });
+  // Build per-trade colours for classification mode
+  const marketColors = marketTrades.map((t) => {
+    if (!analysisState.classifyTrades) return "#6b7280";
+    const point = analysisState.pointLookup.get(`${product}|${t.day}|${t.timestamp}`) || null;
+    return tradeClassificationColor(classifyTradeDirection(t, point));
+  });
+  const marketText = marketTrades.map((t) => {
+    if (!analysisState.classifyTrades) return `q=${t.quantity}`;
+    const point = analysisState.pointLookup.get(`${product}|${t.day}|${t.timestamp}`) || null;
+    return `${classifyTradeDirection(t, point)} q=${t.quantity}`;
   });
 
   const getLevelPrice = (point, side, level) => {
@@ -752,68 +1101,60 @@ function renderAnalysisBookChart(result) {
     {
       type: "scatter",
       mode: resolvedBookMode === "fixed" ? "markers" : "lines",
-      name: "Best Bid",
-      x: axis.x,
-      y: bidL1,
-      line: { color: "#2563eb", width: 2 },
-      marker: { color: "#2563eb", size: resolvedBookMode === "fixed" ? 4 : 0, opacity: 0.65 },
+      name: "Bid",
+      x: axis.x, y: bidL1,
+      line: { color: "#4F8EF7", width: 1.8 },
+      marker: { color: "#4F8EF7", size: resolvedBookMode === "fixed" ? 4 : 0, opacity: 0.7 },
       customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
-      hovertemplate: resolvedBookMode === "fixed"
-        ? "%{customdata}<br>Bid Edge=%{y:.2f}<extra></extra>"
-        : "%{customdata}<br>Best Bid=%{y:.2f}<extra></extra>",
+      hovertemplate: "%{customdata}<br>Bid=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
       mode: resolvedBookMode === "fixed" ? "markers" : "lines",
-      name: "Best Ask",
-      x: axis.x,
-      y: askL1,
-      line: { color: "#dc2626", width: 2 },
-      marker: { color: "#dc2626", size: resolvedBookMode === "fixed" ? 4 : 0, opacity: 0.65 },
+      name: "Ask",
+      x: axis.x, y: askL1,
+      line: { color: "#FF4B4B", width: 1.8 },
+      marker: { color: "#FF4B4B", size: resolvedBookMode === "fixed" ? 4 : 0, opacity: 0.7 },
       customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
-      hovertemplate: resolvedBookMode === "fixed"
-        ? "%{customdata}<br>Ask Edge=%{y:.2f}<extra></extra>"
-        : "%{customdata}<br>Best Ask=%{y:.2f}<extra></extra>",
+      hovertemplate: "%{customdata}<br>Ask=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
       mode: resolvedBookMode === "fixed" ? "markers" : "lines",
       name: "Mid",
-      x: axis.x,
-      y: midSeries,
-      line: { color: "#b45309", width: 1.8, dash: "dot" },
-      marker: { color: "#b45309", size: resolvedBookMode === "fixed" ? 3 : 0, opacity: 0.45 },
+      x: axis.x, y: midSeries,
+      line: { color: "#8E8E9E", width: 1.2, dash: "dot" },
+      marker: { color: "#8E8E9E", size: resolvedBookMode === "fixed" ? 3 : 0, opacity: 0.5 },
       customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
-      hovertemplate: resolvedBookMode === "fixed"
-        ? "%{customdata}<br>Mid Edge=%{y:.2f}<extra></extra>"
-        : "%{customdata}<br>Mid=%{y:.2f}<extra></extra>",
+      hovertemplate: "%{customdata}<br>Mid=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
       mode: "markers",
-      name: "Own Fills",
-      x: fillX,
-      y: normalizedFillY,
-      text: fillText,
+      name: "Fills",
+      x: fillX, y: normalizedFillY, text: fillText,
       marker: {
         size: productFills.map((f) => Math.max(7, Math.min(16, f.quantity + 5))),
-        color: productFills.map((f) => (f.side === "BUY" ? "#16a34a" : "#dc2626")),
-        line: { color: "#111827", width: 0.5 },
+        color: productFills.map((f) => (f.side === "BUY" ? "#00C805" : "#FF4B4B")),
+        line: { color: "rgba(0,0,0,0.4)", width: 0.5 },
       },
-      hovertemplate: resolvedBookMode === "fixed"
-        ? "%{text}<br>Fill Edge=%{y:.2f}<extra></extra>"
-        : "%{text}<br>Fill=%{y:.2f}<extra></extra>",
+      hovertemplate: "%{text}<br>Price=%{y:.2f}<extra></extra>",
     },
     {
       type: "scatter",
       mode: "markers",
       name: "Market Trades",
-      x: marketX,
-      y: marketY,
-      marker: { size: 5, color: "#6b7280", opacity: 0.6 },
+      x: analysisState.showMarketTrades ? marketX : [],
+      y: analysisState.showMarketTrades ? marketY : [],
+      text: marketText,
+      marker: {
+        size: 5,
+        color: analysisState.classifyTrades ? marketColors : "#6b7280",
+        opacity: 0.72,
+      },
       hovertemplate: resolvedBookMode === "fixed"
-        ? "Market Edge=%{y:.2f}<extra></extra>"
-        : "Market Trade=%{y:.2f}<extra></extra>",
+        ? "%{text}<br>Edge=%{y:.2f}<extra></extra>"
+        : "%{text}<br>Price=%{y:.2f}<extra></extra>",
     },
   ];
 
@@ -866,61 +1207,26 @@ function renderAnalysisBookChart(result) {
   Plotly.newPlot(
     dom.analysisBookChart,
     traces,
-    {
-      margin: { l: 60, r: 60, t: 12, b: 42 },
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(255,255,255,0.78)",
-      legend: { orientation: "h", y: 1.12, font: { size: 10 } },
-      hovermode: "x unified",
-      hoverdistance: -1,
-      spikedistance: -1,
+    baseLayout({
+      margin: { l: 56, r: 56, t: 8, b: 36 },
+      legend: { orientation: "h", y: 1.14, font: { size: 10, color: FONT_COLOR }, bgcolor: "rgba(0,0,0,0)" },
       xaxis: {
-        title: "Time Index",
-        tickvals: axis.tickVals,
-        ticktext: axis.tickText,
-        showgrid: true,
-        gridcolor: "rgba(15,118,110,0.08)",
-        showspikes: true,
-        spikemode: "across",
-        spikesnap: "cursor",
-        spikecolor: "#0f766e",
-        spikethickness: 1,
+        title: "Time", tickvals: axis.tickVals, ticktext: axis.tickText,
+        showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 },
+        showspikes: true, spikemode: "across", spikesnap: "cursor",
+        spikecolor: SPIKE_COLOR, spikethickness: 1,
       },
       yaxis: {
         title: yAxisTitle,
-        range: computeRange([
-          ...midSeries,
-          ...bidL1,
-          ...askL1,
-          ...bidL2,
-          ...askL2,
-          ...bidL3,
-          ...askL3,
-          ...normalizedFillY,
-          ...marketY,
-        ]),
+        range: computeRange([...midSeries, ...bidL1, ...askL1, ...bidL2, ...askL2, ...bidL3, ...askL3, ...normalizedFillY, ...marketY]),
         tickformat: resolvedBookMode === "fixed" ? ",.2f" : (analysisState.normalize === "raw" ? ",.0f" : ",.2f"),
-        showgrid: true,
-        gridcolor: "rgba(15,118,110,0.09)",
+        showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 },
       },
       shapes: [
         ...buildSelectionShape(selectedIndex),
-        ...(resolvedBookMode === "fixed"
-          ? [
-              {
-                type: "line",
-                xref: "paper",
-                yref: "y",
-                x0: 0,
-                x1: 1,
-                y0: 0,
-                y1: 0,
-                line: { color: "rgba(180,83,9,0.55)", width: 1, dash: "dot" },
-              },
-            ]
-          : []),
+        ...(resolvedBookMode === "fixed" ? [{ type: "line", xref: "paper", yref: "y", x0: 0, x1: 1, y0: 0, y1: 0, line: { color: "rgba(0,200,5,0.25)", width: 1, dash: "dot" } }] : []),
       ],
-    },
+    }),
     { responsive: true, displaylogo: false }
   );
 
@@ -965,63 +1271,34 @@ function renderAnalysisPositionChart(result) {
     dom.analysisPositionChart,
     [
       {
-        type: "scatter",
-        mode: "lines",
-        name: "Position",
-        x: axis.x,
-        y: productPoints.map((p) => p.position),
-        line: { color: "#7c3aed", width: 2 },
+        type: "scatter", mode: "lines", name: "Position",
+        x: axis.x, y: productPoints.map((p) => p.position),
+        line: { color: "#00C805", width: 2 },
         customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
-        hovertemplate: "%{customdata}<br>Position=%{y}<extra></extra>",
+        hovertemplate: "%{customdata}<br>Pos=%{y}<extra></extra>",
         yaxis: "y1",
       },
       {
-        type: "scatter",
-        mode: "lines",
-        name: "Product PnL",
-        x: axis.x,
-        y: stitched.map((p) => p.stitchedValue),
-        line: { color: "#111827", width: 2, dash: "dot" },
+        type: "scatter", mode: "lines", name: "PnL",
+        x: axis.x, y: stitched.map((p) => p.stitchedValue),
+        line: { color: "#4F8EF7", width: 1.8, dash: "dot" },
         customdata: stitched.map((p) => `D${p.day} T${p.timestamp}`),
         hovertemplate: "%{customdata}<br>PnL=%{y:.2f}<extra></extra>",
         yaxis: "y2",
       },
     ],
-    {
-      margin: { l: 60, r: 60, t: 12, b: 42 },
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(255,255,255,0.78)",
-      legend: { orientation: "h", y: 1.12, font: { size: 10 } },
-      hovermode: "x unified",
-      hoverdistance: -1,
-      spikedistance: -1,
+    baseLayout({
+      margin: { l: 56, r: 56, t: 8, b: 36 },
+      legend: { orientation: "h", y: 1.14, font: { size: 10, color: FONT_COLOR }, bgcolor: "rgba(0,0,0,0)" },
       xaxis: {
-        title: "Time Index",
-        tickvals: axis.tickVals,
-        ticktext: axis.tickText,
-        showgrid: true,
-        gridcolor: "rgba(15,118,110,0.08)",
-        showspikes: true,
-        spikemode: "across",
-        spikesnap: "cursor",
-        spikecolor: "#0f766e",
-        spikethickness: 1,
+        title: "Time", tickvals: axis.tickVals, ticktext: axis.tickText,
+        showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 },
+        showspikes: true, spikemode: "across", spikesnap: "cursor", spikecolor: SPIKE_COLOR, spikethickness: 1,
       },
-      yaxis: {
-        title: "Position",
-        range: computeRange(productPoints.map((p) => p.position)),
-        showgrid: true,
-        gridcolor: "rgba(15,118,110,0.09)",
-      },
-      yaxis2: {
-        title: "PnL",
-        range: computeRange(stitched.map((p) => p.stitchedValue)),
-        overlaying: "y",
-        side: "right",
-        showgrid: false,
-      },
+      yaxis: { title: "Position", range: computeRange(productPoints.map((p) => p.position)), showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+      yaxis2: { title: "PnL", range: computeRange(stitched.map((p) => p.stitchedValue)), overlaying: "y", side: "right", showgrid: false, color: FONT_COLOR, tickfont: { size: 10 } },
       shapes: buildSelectionShape(selectedIndex),
-    },
+    }),
     { responsive: true, displaylogo: false }
   );
 
@@ -1235,6 +1512,8 @@ function renderAnalysis(result) {
   renderAnalysisFillsTable(result);
   renderMissedOpportunities(result);
   applySelectionCrosshair();
+  // Feature 1: rebuild indicator overlays whenever product/result changes
+  buildIndicatorCheckboxes(result);
 }
 
 function renderProductCharts(points, fills) {
@@ -1302,7 +1581,7 @@ function renderProductCharts(points, fills) {
         name: `${product} PnL`,
         x: axis.x,
         y: mtmValues,
-        line: { color: "#111827", width: 1.5, dash: "dot" },
+        line: { color: "#4F8EF7", width: 1.5, dash: "dot" },
         customdata: stitchedProductPoints.map((p) => `D${p.day} T${p.timestamp}`),
         hovertemplate: "%{customdata}<br>PnL=%{y:.2f}<extra></extra>",
         yaxis: "y2",
@@ -1328,9 +1607,9 @@ function renderProductCharts(points, fills) {
         name: `${product} Mid Price`,
         x: axis.x,
         y: productPoints.map((p) => p.mid_price),
-        line: { color: "#b45309", width: 2 },
+        line: { color: "#8E8E9E", width: 1.8 },
         customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
-        hovertemplate: "%{customdata}<br>Mid Price=%{y:.2f}<extra></extra>",
+        hovertemplate: "%{customdata}<br>Mid=%{y:.2f}<extra></extra>",
         yaxis: "y1",
       });
     }
@@ -1338,34 +1617,17 @@ function renderProductCharts(points, fills) {
     Plotly.newPlot(
       plotTarget,
       traces,
-      {
-        margin: { l: 56, r: 56, t: 8, b: 36 },
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(255,255,255,0.78)",
-        legend: { orientation: "h", y: 1.12 },
-        xaxis: {
-          title: "Time Index",
-          tickvals: axis.tickVals,
-          ticktext: axis.tickText,
-          showgrid: true,
-          gridcolor: "rgba(15,118,110,0.08)",
-        },
+      baseLayout({
+        margin: { l: 56, r: 56, t: 6, b: 32 },
+        legend: { orientation: "h", y: 1.14, font: { size: 10, color: FONT_COLOR }, bgcolor: "rgba(0,0,0,0)" },
+        xaxis: { title: "Time", tickvals: axis.tickVals, ticktext: axis.tickText, showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
         yaxis: {
-          title: isFixedValueProduct ? "Fair Value / Fill Price" : "Price",
+          title: isFixedValueProduct ? "Price" : "Price",
           range: computeRange(isFixedValueProduct ? [...fillY, fairValue] : productPoints.map((p) => p.mid_price)),
-          tickformat: ",.0f",
-          showgrid: true,
-          gridcolor: "rgba(15,118,110,0.09)",
+          tickformat: ",.0f", showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 },
         },
-        yaxis2: {
-          title: "PnL",
-          range: computeRange(mtmValues),
-          tickformat: ",.0f",
-          overlaying: "y",
-          side: "right",
-          showgrid: false,
-        },
-      },
+        yaxis2: { title: "PnL", range: computeRange(mtmValues), tickformat: ",.0f", overlaying: "y", side: "right", showgrid: false, color: FONT_COLOR, tickfont: { size: 10 } },
+      }),
       { responsive: true, displaylogo: false }
     );
   }
@@ -1544,6 +1806,72 @@ function wireAnalysisControls() {
     const key = target.dataset.key;
     selectTimestampByKey(analysisState.bookRows, key);
   });
+
+  // Feature 2: new trade-type / size-bucket controls
+  if (dom.sizeBucket) {
+    dom.sizeBucket.addEventListener("change", () => {
+      analysisState.sizeBucket = dom.sizeBucket.value;
+      renderAnalysis(lastResult);
+    });
+  }
+  if (dom.showOwnFills) {
+    dom.showOwnFills.addEventListener("change", () => {
+      analysisState.showOwnFills = dom.showOwnFills.checked;
+      renderAnalysis(lastResult);
+    });
+  }
+  if (dom.showMarketTrades) {
+    dom.showMarketTrades.addEventListener("change", () => {
+      analysisState.showMarketTrades = dom.showMarketTrades.checked;
+      renderAnalysis(lastResult);
+    });
+  }
+  if (dom.classifyTrades) {
+    dom.classifyTrades.addEventListener("change", () => {
+      analysisState.classifyTrades = dom.classifyTrades.checked;
+      renderAnalysis(lastResult);
+    });
+  }
+}
+
+function wireCompareControls() {
+  // Feature 3: pin / compare runs
+  if (dom.pinRunButton) {
+    dom.pinRunButton.addEventListener("click", pinCurrentRun);
+  }
+  if (dom.clearPinnedRuns) {
+    dom.clearPinnedRuns.addEventListener("click", () => {
+      savedRuns.length = 0;
+      renderSavedRunsList();
+      renderPortfolioChart(lastResult.points);
+      setStatus("Pinned runs cleared.");
+    });
+  }
+}
+
+function wireSyntheticControls() {
+  // Feature 6: synthetic / spread view
+  if (dom.syntheticRun) {
+    dom.syntheticRun.addEventListener("click", () => {
+      const formula = dom.syntheticFormula?.value || "";
+      renderSyntheticChart(formula, lastResult.points);
+    });
+  }
+  if (dom.syntheticFormula) {
+    dom.syntheticFormula.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        renderSyntheticChart(dom.syntheticFormula.value, lastResult.points);
+      }
+    });
+  }
+
+  // Feature 5: performance mode
+  if (dom.performanceMode) {
+    dom.performanceMode.addEventListener("change", () => {
+      performanceMode = dom.performanceMode.value;
+      renderAnalysis(lastResult);
+    });
+  }
 }
 
 function wireExportButtons() {
@@ -1604,6 +1932,8 @@ async function main() {
   wireFileInputs();
   wireExportButtons();
   wireAnalysisControls();
+  wireCompareControls();
+  wireSyntheticControls();
   dom.runButton.addEventListener("click", runSimulation);
 
   try {

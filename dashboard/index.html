@@ -6,7 +6,7 @@
   <title>Prosperity Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js" defer></script>
@@ -41,16 +41,24 @@
         <h2>Run</h2>
         <label class="field-label" for="matchingMode">Trade Matching Mode</label>
         <select id="matchingMode" class="field-input">
-          <option value="all">all</option>
-          <option value="worse">worse</option>
-          <option value="none" selected>none</option>
+          <option value="all" title="Optimistic: assume passive quotes fill whenever market trades at your price">all (optimistic)</option>
+          <option value="worse" title="Neutral: fill only if market trades strictly worse than your price">worse (neutral)</option>
+          <option value="none" selected title="Pessimistic: only taker fills against the resting book">none (pessimistic)</option>
         </select>
+        <p class="matching-hint">⚠ Fill mechanics are approximate. True queue position is unknown.</p>
 
         <label class="field-label" for="emeraldLimit">EMERALDS Limit</label>
         <input id="emeraldLimit" class="field-input" type="number" value="80" step="1" />
 
         <label class="field-label" for="tomatoLimit">TOMATOES Limit</label>
         <input id="tomatoLimit" class="field-input" type="number" value="80" step="1" />
+
+        <label class="field-label" for="performanceMode">Render Quality</label>
+        <select id="performanceMode" class="field-input">
+          <option value="full" selected>Full (all points)</option>
+          <option value="medium">Medium (every 2nd)</option>
+          <option value="fast">Fast (every 5th)</option>
+        </select>
 
         <button id="runButton" class="run-btn">Run Simulation</button>
         <div id="status" class="status">Initializing Pyodide...</div>
@@ -63,6 +71,13 @@
           <li>Open <code>http://localhost:8000/dashboard/</code> in Chrome.</li>
           <li>Upload a strategy file and click Run Simulation.</li>
         </ol>
+      </section>
+
+      <section class="panel">
+        <h2>Compare Runs</h2>
+        <input id="runLabel" class="field-input" type="text" placeholder="Label (e.g. v1, wide-quotes)" />
+        <button id="pinRunButton" class="btn" type="button" style="margin-top:6px;width:100%">Pin Current Run</button>
+        <ul id="savedRunsList" class="saved-runs-list"></ul>
       </section>
 
       <section class="panel metrics">
@@ -83,6 +98,7 @@
         <div class="chart-card">
           <div class="chart-title-row">
             <h2>PnL</h2>
+            <button id="clearPinnedRuns" class="btn small-btn" type="button">Clear Pins</button>
             <span id="tradeCount">Trades: 0</span>
           </div>
           <div id="portfolioChart" class="portfolio-chart"></div>
@@ -169,6 +185,23 @@
                 <option value="fixed">Fixed Edge View</option>
               </select>
             </div>
+            <div>
+              <label class="field-label" for="sizeBucket">Size Bucket</label>
+              <select id="sizeBucket" class="field-input">
+                <option value="all">All Sizes</option>
+                <option value="small">Small (1–5)</option>
+                <option value="medium">Med (6–15)</option>
+                <option value="large">Large (&gt;15)</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Visibility / Classification</label>
+              <div class="toggle-group">
+                <label class="toggle-label"><input type="checkbox" id="showOwnFills" checked /> Own Fills</label>
+                <label class="toggle-label"><input type="checkbox" id="showMarketTrades" checked /> Mkt Trades</label>
+                <label class="toggle-label"><input type="checkbox" id="classifyTrades" /> Classify Aggression</label>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -194,6 +227,15 @@
             <h2>Position + Product PnL</h2>
           </div>
           <div id="analysisPositionChart" class="analysis-chart"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Indicator Overlays</h2>
+            <span id="overlayStatus" class="muted-label">No indicators in traderData yet</span>
+          </div>
+          <div id="overlayCheckboxes" class="overlay-checkboxes"></div>
+          <div id="indicatorChart" class="analysis-chart" style="height:200px;margin-top:8px;display:none;"></div>
         </div>
 
         <div class="chart-card">
@@ -251,6 +293,17 @@
               <tbody></tbody>
             </table>
           </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Synthetic / Spread View</h2>
+            <span class="muted-label">Enter a formula using product names</span>
+          </div>
+          <div class="synthetic-formula-row">
+            <input id="syntheticFormula" class="field-input" type="text" placeholder="e.g. EMERALDS - 10000  or  EMERALDS - TOMATOES" style="flex:1" />
+            <button id="syntheticRun" class="btn small-btn" type="button">Compute</button>
+          </div>
+          <div id="syntheticChart" class="analysis-chart" style="height:220px;margin-top:8px;display:none;"></div>
         </div>
       </section>
     </section>
