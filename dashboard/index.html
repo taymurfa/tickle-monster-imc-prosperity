@@ -94,6 +94,12 @@
     </aside>
 
     <section class="workspace">
+      <nav class="top-tabs" id="tabBar">
+        <button class="tab-btn active" data-tab="overviewTab">Overview</button>
+        <button class="tab-btn" data-tab="analysisTab">Analysis</button>
+        <button class="tab-btn" data-tab="compareTab">Compare</button>
+      </nav>
+
       <section id="overviewTab" class="content" role="region" aria-label="Overview">
         <div class="chart-card">
           <div class="chart-title-row">
@@ -202,6 +208,12 @@
                 <label class="toggle-label"><input type="checkbox" id="classifyTrades" /> Classify Aggression</label>
               </div>
             </div>
+            <div>
+              <label class="field-label" for="traderIdFilter">Trader ID</label>
+              <select id="traderIdFilter" class="field-input">
+                <option value="ALL">ALL traders</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -303,7 +315,89 @@
             <input id="syntheticFormula" class="field-input" type="text" placeholder="e.g. EMERALDS - 10000  or  EMERALDS - TOMATOES" style="flex:1" />
             <button id="syntheticRun" class="btn small-btn" type="button">Compute</button>
           </div>
+          <div class="toggle-group" style="margin-top:8px;">
+            <label class="toggle-label"><input type="checkbox" id="syntheticZscore" /> Z-score (50-bar rolling)</label>
+            <label class="toggle-label"><input type="checkbox" id="syntheticShowEvents" /> Show spread events</label>
+          </div>
           <div id="syntheticChart" class="analysis-chart" style="height:220px;margin-top:8px;display:none;"></div>
+        </div>
+      </section>
+
+      <section id="compareTab" class="compare-content" role="region" aria-label="Compare">
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Run Comparison</h2>
+            <span class="muted-label" id="compareHint">Run the simulation at least twice to compare</span>
+          </div>
+          <div class="compare-selectors">
+            <div>
+              <label class="field-label" for="compareRunA">Run A</label>
+              <select id="compareRunA" class="field-input"></select>
+            </div>
+            <div>
+              <label class="field-label" for="compareRunB">Run B</label>
+              <select id="compareRunB" class="field-input"></select>
+            </div>
+            <div>
+              <label class="field-label" for="compareProduct">Product</label>
+              <select id="compareProduct" class="field-input">
+                <option value="ALL">ALL</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:flex-end;">
+              <button id="compareRunsBtn" class="run-btn" style="width:auto;padding:9px 18px;" type="button">Compare →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="compare-charts-grid">
+          <div class="chart-card">
+            <div class="chart-title-row"><h2>PnL — A vs B</h2></div>
+            <div id="comparePnlChart" style="height:220px;width:100%;"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title-row"><h2>Position — A vs B</h2></div>
+            <div id="comparePositionChart" style="height:220px;width:100%;"></div>
+          </div>
+        </div>
+
+        <div class="compare-tables-grid">
+          <div class="table-card">
+            <div class="table-title-row">
+              <h2>Fills unique to A</h2>
+              <span id="fillsOnlyACount" class="muted-label">0 fills</span>
+            </div>
+            <div class="table-wrap">
+              <table id="fillsOnlyATable">
+                <thead><tr><th>Day</th><th>TS</th><th>Product</th><th>Side</th><th>Price</th><th>Qty</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="table-card">
+            <div class="table-title-row">
+              <h2>Fills unique to B</h2>
+              <span id="fillsOnlyBCount" class="muted-label">0 fills</span>
+            </div>
+            <div class="table-wrap">
+              <table id="fillsOnlyBTable">
+                <thead><tr><th>Day</th><th>TS</th><th>Product</th><th>Side</th><th>Price</th><th>Qty</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-title-row">
+            <h2>Largest PnL Divergence Points</h2>
+          </div>
+          <div class="table-wrap">
+            <table id="pnlDivergenceTable">
+              <thead><tr><th>Day</th><th>Timestamp</th><th>PnL A</th><th>PnL B</th><th>|Delta|</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
       </section>
     </section>

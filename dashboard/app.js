@@ -108,6 +108,7 @@ const analysisState = {
   showMarketTrades: true,
   classifyTrades: false,
   sizeBucket: "all",
+  traderId: "ALL",
 };
 
 const FIXED_VALUE_PRODUCTS = {
@@ -383,20 +384,49 @@ function renderSyntheticChart(formula, points) {
 
   const stitched = stitchSeriesByDay(series.map((s) => ({ ...s, sv: s.value })), "sv");
   const axis = buildTimeAxis(series);
-  const yVals = stitched.map((s) => s.stitchedValue);
+  const useZscore = document.getElementById("syntheticZscore")?.checked;
+  const showEvents = document.getElementById("syntheticShowEvents")?.checked;
+
+  let yVals = stitched.map((s) => s.stitchedValue);
+  if (useZscore) yVals = computeZscore(yVals);
+
   chartEl.style.display = "";
+  const traces = [{
+    type: "scatter", mode: "lines",
+    name: useZscore ? `z(${formula})` : formula,
+    x: axis.x, y: yVals,
+    line: { color: "#00C805", width: 2 },
+    hovertemplate: `val=%{y:.4f}<extra></extra>`,
+  }];
+
+  const shapes = [];
+  // Zero line for z-score
+  if (useZscore) {
+    shapes.push({ type: "line", xref: "paper", yref: "y", x0: 0, x1: 1, y0: 0, y1: 0, line: { color: "rgba(0,200,5,0.25)", width: 1, dash: "dot" } });
+  }
+
+  // Feature 7: spread event markers
+  if (showEvents) {
+    const events = findSpreadEvents(yVals);
+    const evX = events.map(e => e.idx);
+    const evY = events.map(e => yVals[e.idx]);
+    const evText = events.map(e => e.type);
+    traces.push({
+      type: "scatter", mode: "markers", name: "Events",
+      x: evX, y: evY, text: evText,
+      marker: { size: 9, color: "#FF4B4B", symbol: "diamond" },
+      hovertemplate: "%{text}<br>val=%{y:.4f}<extra></extra>",
+    });
+  }
 
   Plotly.newPlot(
     chartEl,
-    [{
-      type: "scatter", mode: "lines", name: formula,
-      x: axis.x, y: yVals,
-      line: { color: "#00C805", width: 2 },
-      hovertemplate: `val=%{y:.4f}<extra></extra>`,
-    }],
+    traces,
     baseLayout({
+      legend: { orientation: "h", y: 1.14, font: { size: 10, color: FONT_COLOR }, bgcolor: "rgba(0,0,0,0)" },
       xaxis: { title: "Time", tickvals: axis.tickVals, ticktext: axis.tickText, showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
-      yaxis: { title: "Value", range: computeRange(yVals), showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+      yaxis: { title: useZscore ? "Z-score" : "Value", range: computeRange(yVals), showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+      shapes,
     }),
     { responsive: true, displaylogo: false }
   );
@@ -566,10 +596,21 @@ function getSelectedLimits() {
 }
 
 function inferReferencePrice(product, point) {
-  const fair = FIXED_VALUE_PRODUCTS[product];
-  if (Number.isFinite(fair)) {
-    return fair;
+  // Feature 4: custom traderData field normalization
+  if (analysisState.normalize.startsWith("field:")) {
+    const key = analysisState.normalize.slice(6);
+    const logs = analysisState.activeResult?.state_logs || [];
+    const log = logs.find(s => s.day === point.day && s.timestamp === point.timestamp);
+    if (log?.trader_data) {
+      try {
+        const parsed = JSON.parse(log.trader_data);
+        if (typeof parsed[key] === "number") return parsed[key];
+      } catch {}
+    }
+    return point?.mid_price ?? null;
   }
+  const fair = FIXED_VALUE_PRODUCTS[product];
+  if (Number.isFinite(fair)) return fair;
   return point?.mid_price ?? null;
 }
 
@@ -595,14 +636,11 @@ function normalizePrice(product, point, price) {
 }
 
 function getPriceAxisTitle(product) {
-  if (analysisState.normalize === "raw") {
-    return "Price";
-  }
-  if (analysisState.normalize === "mid") {
-    return "Price - Mid";
-  }
+  if (analysisState.normalize === "raw") return "Price";
+  if (analysisState.normalize === "mid") return "Price − Mid";
+  if (analysisState.normalize.startsWith("field:")) return `Price − ${analysisState.normalize.slice(6)}`;
   const hasFair = Number.isFinite(FIXED_VALUE_PRODUCTS[product]);
-  return hasFair ? "Price - Fair Value" : "Price - Reference";
+  return hasFair ? "Price − Fair Value" : "Price − Reference";
 }
 
 function detectFixedLikeProduct(product, productPoints) {
@@ -1031,11 +1069,12 @@ function renderAnalysisBookChart(result) {
     }
   }
 
-  // Feature 2: filter market trades by size bucket; classify if requested
+  // Feature 2: filter market trades by size bucket, trader ID; classify if requested
   const marketTrades = (result.market_trades || [])
     .filter((t) => t.product === product)
     .filter((t) => indexByKey.has(`${t.day}|${t.timestamp}`))
-    .filter((t) => sizeBucketMatch(t.quantity, analysisState.sizeBucket));
+    .filter((t) => sizeBucketMatch(t.quantity, analysisState.sizeBucket))
+    .filter((t) => analysisState.traderId === "ALL" || t.buyer === analysisState.traderId || t.seller === analysisState.traderId);
 
   const marketX = marketTrades.map((t) => indexByKey.get(`${t.day}|${t.timestamp}`));
   let marketY = marketTrades.map((t) => {
@@ -1696,12 +1735,27 @@ async function runSimulation() {
     const parsed = JSON.parse(rawResult);
     parsed.market_trades = parsed.market_trades || [];
     parsed.state_logs = parsed.state_logs || [];
+
+    // Feature 5: inject proxy metrics into state_logs before rendering
+    computeAndInjectProxyMetrics(parsed);
+
     lastResult = parsed;
+    invalidateSeriesCache();
+
+    // Feature 3: store run for comparison
+    const runLabel = (dom.runLabel?.value || "").trim() || `Run ${runCounter + 1}`;
+    storeRun(parsed, runLabel);
+
     renderPortfolioChart(parsed.points);
     renderProductCharts(parsed.points, parsed.fills);
     renderMetrics(parsed.metrics);
     renderFillsTable(parsed.fills);
     renderAnalysis(parsed);
+
+    // Feature 2: populate trader ID filter
+    buildTraderIdFilter(parsed.market_trades);
+    // Feature 4: populate normalize-by-field options
+    buildNormalizeOptions(parsed.state_logs);
 
     setStatus(`Done. Processed ${parsed.points.length} points and ${parsed.fills.length} simulated fills.`);
   } catch (error) {
@@ -1835,7 +1889,7 @@ function wireAnalysisControls() {
 }
 
 function wireCompareControls() {
-  // Feature 3: pin / compare runs
+  // Portfolio chart pin/clear (savedRuns overlay)
   if (dom.pinRunButton) {
     dom.pinRunButton.addEventListener("click", pinCurrentRun);
   }
@@ -1847,6 +1901,9 @@ function wireCompareControls() {
       setStatus("Pinned runs cleared.");
     });
   }
+  // Feature 3: Compare tab button
+  const compareBtn = document.getElementById("compareRunsBtn");
+  if (compareBtn) compareBtn.addEventListener("click", renderCompareView);
 }
 
 function wireSyntheticControls() {
@@ -1869,6 +1926,15 @@ function wireSyntheticControls() {
   if (dom.performanceMode) {
     dom.performanceMode.addEventListener("change", () => {
       performanceMode = dom.performanceMode.value;
+      renderAnalysis(lastResult);
+    });
+  }
+
+  // Feature 2: trader ID filter
+  const traderIdEl = document.getElementById("traderIdFilter");
+  if (traderIdEl) {
+    traderIdEl.addEventListener("change", () => {
+      analysisState.traderId = traderIdEl.value;
       renderAnalysis(lastResult);
     });
   }
@@ -1927,6 +1993,369 @@ function wireExportButtons() {
   });
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 2: Trader ID extraction + filter
+// ══════════════════════════════════════════════════════════════════════════════
+
+function extractTraderIds(marketTrades) {
+  const ids = new Set();
+  for (const t of marketTrades) {
+    if (t.buyer && t.buyer !== "SUBMISSION" && t.buyer !== "") ids.add(t.buyer);
+    if (t.seller && t.seller !== "SUBMISSION" && t.seller !== "") ids.add(t.seller);
+  }
+  return [...ids].sort();
+}
+
+function buildTraderIdFilter(marketTrades) {
+  const el = document.getElementById("traderIdFilter");
+  if (!el) return;
+  const current = el.value;
+  const ids = extractTraderIds(marketTrades);
+  el.innerHTML = `<option value="ALL">ALL traders</option>`;
+  for (const id of ids) {
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = id;
+    el.appendChild(opt);
+  }
+  if (ids.includes(current)) el.value = current;
+  analysisState.traderId = "ALL";
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 4: Dynamic "normalize by traderData field" options
+// ══════════════════════════════════════════════════════════════════════════════
+
+function buildNormalizeOptions(stateLogs) {
+  const el = dom.analysisNormalize;
+  if (!el) return;
+  // Remove previously added dynamic options
+  for (const opt of [...el.querySelectorAll("option[data-dynamic]")]) opt.remove();
+  const fields = extractIndicatorFields(stateLogs);
+  for (const key of fields.keys()) {
+    if (key.startsWith("~")) continue; // skip proxy fields in normalize list
+    const opt = document.createElement("option");
+    opt.value = `field:${key}`;
+    opt.textContent = `Price − ${key}`;
+    opt.dataset.dynamic = "1";
+    el.appendChild(opt);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 5: Auto-computed proxy metrics (book imbalance, vol imbalance, spread)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function computeAndInjectProxyMetrics(result) {
+  const tradesByKey = new Map();
+  for (const t of (result.market_trades || [])) {
+    const key = `${t.day}|${t.timestamp}|${t.product}`;
+    if (!tradesByKey.has(key)) tradesByKey.set(key, []);
+    tradesByKey.get(key).push(t);
+  }
+
+  const existingByKey = new Map();
+  for (const log of (result.state_logs || [])) {
+    existingByKey.set(`${log.day}|${log.timestamp}`, log);
+  }
+
+  const proxyByTs = new Map();
+  for (const pt of result.points) {
+    const tsKey = `${pt.day}|${pt.timestamp}`;
+    if (!proxyByTs.has(tsKey)) proxyByTs.set(tsKey, { day: pt.day, timestamp: pt.timestamp, fields: {} });
+    const entry = proxyByTs.get(tsKey);
+
+    const trades = tradesByKey.get(`${pt.day}|${pt.timestamp}|${pt.product}`) || [];
+    const bid1v = (pt.bid_volumes || [])[0] || 0;
+    const ask1v = (pt.ask_volumes || [])[0] || 0;
+    const total = bid1v + ask1v;
+    const pfx = pt.product.slice(0, 3).toLowerCase() + "_";
+
+    if (pt.mid_price > 0 && pt.best_bid != null && pt.best_ask != null) {
+      entry.fields[`~${pfx}spread_bps`] = Number(((pt.best_ask - pt.best_bid) / pt.mid_price * 10000).toFixed(2));
+    }
+    if (total > 0) {
+      entry.fields[`~${pfx}book_imb`] = Number(((bid1v - ask1v) / total).toFixed(3));
+    }
+    const aggB = trades.filter(t => pt.best_ask != null && t.price >= pt.best_ask).reduce((s, t) => s + t.quantity, 0);
+    const aggS = trades.filter(t => pt.best_bid != null && t.price <= pt.best_bid).reduce((s, t) => s + t.quantity, 0);
+    const totalTrade = trades.reduce((s, t) => s + t.quantity, 0);
+    if (totalTrade > 0) {
+      entry.fields[`~${pfx}vol_imb`] = Number(((aggB - aggS) / totalTrade).toFixed(3));
+    }
+  }
+
+  for (const [tsKey, proxy] of proxyByTs) {
+    const existing = existingByKey.get(tsKey);
+    let existingFields = {};
+    if (existing?.trader_data) {
+      try { existingFields = JSON.parse(existing.trader_data) || {}; } catch {}
+    }
+    const merged = { ...existingFields, ...proxy.fields };
+    if (existing) {
+      existing.trader_data = JSON.stringify(merged);
+    } else {
+      result.state_logs.push({ day: proxy.day, timestamp: proxy.timestamp, trader_data: JSON.stringify(merged) });
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 3: Runs store + full Compare tab
+// ══════════════════════════════════════════════════════════════════════════════
+
+const runs = [];
+let runCounter = 0;
+
+function storeRun(result, label) {
+  runCounter += 1;
+  runs.push({ label: label || `Run ${runCounter}`, result, id: runCounter });
+  buildRunSelectors();
+}
+
+function buildRunSelectors() {
+  const selA = document.getElementById("compareRunA");
+  const selB = document.getElementById("compareRunB");
+  const selProd = document.getElementById("compareProduct");
+  const hint = document.getElementById("compareHint");
+  if (!selA || !selB) return;
+
+  const prevA = selA.value;
+  const prevB = selB.value;
+
+  selA.innerHTML = "";
+  selB.innerHTML = "";
+  for (let i = 0; i < runs.length; i++) {
+    for (const sel of [selA, selB]) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = runs[i].label;
+      sel.appendChild(opt);
+    }
+  }
+  // Restore or default selections
+  selA.value = prevA !== "" && runs[Number(prevA)] ? prevA : runs.length - 1;
+  selB.value = prevB !== "" && runs[Number(prevB)] ? prevB : Math.max(0, runs.length - 2);
+
+  if (hint) hint.textContent = `${runs.length} run${runs.length === 1 ? "" : "s"} stored`;
+
+  if (selProd && runs.length > 0) {
+    const products = [...new Set(runs[runs.length - 1].result.points.map(p => p.product))].sort();
+    selProd.innerHTML = `<option value="ALL">ALL</option>`;
+    for (const p of products) {
+      const opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = p;
+      selProd.appendChild(opt);
+    }
+  }
+}
+
+function computeFillsDiff(runA, runB, product) {
+  const filter = (fills) => product === "ALL" ? fills : fills.filter(f => f.product === product);
+  const makeKey = (f) => `${f.day}|${f.timestamp}|${f.product}|${f.side}|${f.price}`;
+  const fillsA = filter(runA.result.fills);
+  const fillsB = filter(runB.result.fills);
+  const keysB = new Set(fillsB.map(makeKey));
+  const keysA = new Set(fillsA.map(makeKey));
+  return {
+    onlyA: fillsA.filter(f => !keysB.has(makeKey(f))),
+    onlyB: fillsB.filter(f => !keysA.has(makeKey(f))),
+  };
+}
+
+function computePnlDivergence(runA, runB, topN = 25) {
+  const mapA = new Map(runA.result.points.map(pt => [parseKey(pt), pt.portfolio_mtm_pnl]));
+  const mapB = new Map(runB.result.points.map(pt => [parseKey(pt), pt.portfolio_mtm_pnl]));
+  const divergence = [];
+  for (const [key, pA] of mapA) {
+    const pB = mapB.get(key);
+    if (pB !== undefined) {
+      const delta = Math.abs(pA - pB);
+      if (delta > 0) {
+        const [day, timestamp] = key.split("|").map(Number);
+        divergence.push({ day, timestamp, pnlA: pA, pnlB: pB, delta });
+      }
+    }
+  }
+  return divergence.sort((a, b) => b.delta - a.delta).slice(0, topN);
+}
+
+function renderCompareView() {
+  const selA = document.getElementById("compareRunA");
+  const selB = document.getElementById("compareRunB");
+  const selProd = document.getElementById("compareProduct");
+  if (!selA || !selB || runs.length < 2) {
+    setStatus("Need at least 2 runs — run the simulation again with different settings.", true);
+    return;
+  }
+  const idxA = Number(selA.value);
+  const idxB = Number(selB.value);
+  if (idxA === idxB) { setStatus("Select two different runs.", true); return; }
+
+  const runA = runs[idxA];
+  const runB = runs[idxB];
+  const product = selProd?.value || "ALL";
+
+  renderComparePnlChart(runA, runB);
+  renderComparePositionChart(runA, runB, product);
+
+  const { onlyA, onlyB } = computeFillsDiff(runA, runB, product);
+  const countA = document.getElementById("fillsOnlyACount");
+  const countB = document.getElementById("fillsOnlyBCount");
+  if (countA) countA.textContent = `${onlyA.length} fills`;
+  if (countB) countB.textContent = `${onlyB.length} fills`;
+  renderFillsDiffRows("fillsOnlyATable", onlyA);
+  renderFillsDiffRows("fillsOnlyBTable", onlyB);
+  renderPnlDivergenceRows(computePnlDivergence(runA, runB));
+}
+
+function renderComparePnlChart(runA, runB) {
+  const el = document.getElementById("comparePnlChart");
+  if (!el) return;
+  function getRows(run) {
+    const tracker = new Map();
+    for (const pt of run.result.points) tracker.set(parseKey(pt), { day: pt.day, timestamp: pt.timestamp, value: pt.portfolio_mtm_pnl });
+    return stitchSeriesByDay([...tracker.values()].sort(sortByDayThenTs), "value");
+  }
+  const rowsA = getRows(runA);
+  const rowsB = getRows(runB);
+  const axisA = buildTimeAxis(rowsA);
+  Plotly.newPlot(el, [
+    { type: "scatter", mode: "lines", name: runA.label, x: axisA.x, y: rowsA.map(r => r.stitchedValue), line: { color: "#00C805", width: 2 }, hovertemplate: `${runA.label} PnL=%{y:.2f}<extra></extra>` },
+    { type: "scatter", mode: "lines", name: runB.label, x: buildTimeAxis(rowsB).x, y: rowsB.map(r => r.stitchedValue), line: { color: "#4F8EF7", width: 2 }, hovertemplate: `${runB.label} PnL=%{y:.2f}<extra></extra>` },
+  ], baseLayout({
+    legend: { orientation: "h", y: 1.14, font: { size: 10, color: FONT_COLOR }, bgcolor: "rgba(0,0,0,0)" },
+    xaxis: { title: "Time", tickvals: axisA.tickVals, ticktext: axisA.tickText, showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+    yaxis: { title: "PnL", tickformat: ",.0f", showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+  }), { responsive: true, displaylogo: false });
+}
+
+function renderComparePositionChart(runA, runB, product) {
+  const el = document.getElementById("comparePositionChart");
+  if (!el) return;
+  const prod = product === "ALL" ? (runA.result.points[0]?.product || "") : product;
+  const ptsA = getProductPoints(runA.result.points, prod);
+  const ptsB = getProductPoints(runB.result.points, prod);
+  const axisA = buildTimeAxis(ptsA);
+  Plotly.newPlot(el, [
+    { type: "scatter", mode: "lines", name: `${runA.label} Pos`, x: axisA.x, y: ptsA.map(p => p.position), line: { color: "#00C805", width: 2 }, hovertemplate: `${runA.label} Pos=%{y}<extra></extra>` },
+    { type: "scatter", mode: "lines", name: `${runB.label} Pos`, x: buildTimeAxis(ptsB).x, y: ptsB.map(p => p.position), line: { color: "#4F8EF7", width: 2 }, hovertemplate: `${runB.label} Pos=%{y}<extra></extra>` },
+  ], baseLayout({
+    legend: { orientation: "h", y: 1.14, font: { size: 10, color: FONT_COLOR }, bgcolor: "rgba(0,0,0,0)" },
+    xaxis: { title: "Time", tickvals: axisA.tickVals, ticktext: axisA.tickText, showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+    yaxis: { title: `${prod} Position`, showgrid: true, gridcolor: GRID_COLOR, color: FONT_COLOR, tickfont: { size: 10 } },
+  }), { responsive: true, displaylogo: false });
+}
+
+function renderFillsDiffRows(tableId, fills) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  const tbody = table.querySelector("tbody");
+  tbody.innerHTML = "";
+  for (const f of fills.slice(0, 200)) {
+    const tr = document.createElement("tr");
+    const col = f.side === "BUY" ? "color:#00C805" : "color:#FF4B4B";
+    tr.innerHTML = `<td>${f.day}</td><td>${f.timestamp}</td><td>${f.product}</td><td style="${col}">${f.side}</td><td>${f.price}</td><td>${f.quantity}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function renderPnlDivergenceRows(divergence) {
+  const table = document.getElementById("pnlDivergenceTable");
+  if (!table) return;
+  const tbody = table.querySelector("tbody");
+  tbody.innerHTML = "";
+  for (const d of divergence) {
+    const aWins = d.pnlA > d.pnlB;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${d.day}</td><td>${d.timestamp}</td><td style="color:${aWins ? "#00C805" : "#FF4B4B"}">${fmtNumber(d.pnlA, 0)}</td><td style="color:${!aWins ? "#00C805" : "#FF4B4B"}">${fmtNumber(d.pnlB, 0)}</td><td style="color:#8E8E9E">${fmtNumber(d.delta, 0)}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 6: Series cache
+// ══════════════════════════════════════════════════════════════════════════════
+
+const _seriesCache = new Map();
+let _cacheRunId = 0;
+
+function invalidateSeriesCache() { _seriesCache.clear(); }
+function seriesCacheGet(key) { return _seriesCache.get(key); }
+function seriesCacheSet(key, val) { _seriesCache.set(key, val); return val; }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 7: Z-score + spread events for synthetic view
+// ══════════════════════════════════════════════════════════════════════════════
+
+function computeZscore(values, window = 50) {
+  return values.map((val, i) => {
+    const slice = values.slice(Math.max(0, i - window + 1), i + 1);
+    const mean = slice.reduce((s, v) => s + v, 0) / slice.length;
+    const variance = slice.reduce((s, v) => s + (v - mean) ** 2, 0) / slice.length;
+    const std = Math.sqrt(variance);
+    return std === 0 ? 0 : (val - mean) / std;
+  });
+}
+
+function findSpreadEvents(values, topN = 10) {
+  // Find zero crossings and local extrema
+  const events = [];
+  for (let i = 1; i < values.length; i++) {
+    const prev = values[i - 1];
+    const cur = values[i];
+    if (prev !== null && cur !== null && prev * cur < 0) {
+      events.push({ idx: i, type: "zero_cross", score: 1 });
+    }
+  }
+  // Local extrema (simple peak/trough)
+  for (let i = 1; i < values.length - 1; i++) {
+    const prev = values[i - 1];
+    const cur = values[i];
+    const next = values[i + 1];
+    if (prev !== null && cur !== null && next !== null) {
+      if (cur > prev && cur > next) events.push({ idx: i, type: "peak", score: Math.abs(cur) });
+      if (cur < prev && cur < next) events.push({ idx: i, type: "trough", score: Math.abs(cur) });
+    }
+  }
+  return events.sort((a, b) => b.score - a.score).slice(0, topN);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Tab navigation
+// ══════════════════════════════════════════════════════════════════════════════
+
+function wireTabNavigation() {
+  const tabBar = document.getElementById("tabBar");
+  if (!tabBar) return;
+
+  // Init: hide all except overview
+  for (const id of ["analysisTab", "compareTab"]) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  }
+
+  tabBar.addEventListener("click", (e) => {
+    const btn = e.target.closest(".tab-btn");
+    if (!btn || !btn.dataset.tab) return;
+    const tabId = btn.dataset.tab;
+
+    for (const b of tabBar.querySelectorAll(".tab-btn")) b.classList.remove("active");
+    btn.classList.add("active");
+
+    for (const id of ["overviewTab", "analysisTab", "compareTab"]) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = id === tabId ? "" : "none";
+    }
+
+    // Trigger reflow of Plotly charts when tab becomes visible
+    if (tabId === "compareTab" && runs.length >= 2) {
+      window.dispatchEvent(new Event("resize"));
+    }
+  });
+}
+
 async function main() {
   renderDataFiles();
   wireFileInputs();
@@ -1934,6 +2363,7 @@ async function main() {
   wireAnalysisControls();
   wireCompareControls();
   wireSyntheticControls();
+  wireTabNavigation();
   dom.runButton.addEventListener("click", runSimulation);
 
   try {

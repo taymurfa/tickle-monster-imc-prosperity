@@ -631,6 +631,29 @@ tr:hover td { background: var(--bg-hover); }
   color: var(--muted);
 }
 
+/* ── compare tab ─────────────────────────────────────────────────────────── */
+
+.compare-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.compare-selectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.compare-charts-grid,
+.compare-tables-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+}
+
 /* ── responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 1080px) {
@@ -647,5 +670,14 @@ tr:hover td { background: var(--bg-hover); }
 
   .analysis-filters-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .compare-selectors {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .compare-charts-grid,
+  .compare-tables-grid {
+    grid-template-columns: 1fr;
   }
 }
