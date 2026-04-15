@@ -654,6 +654,69 @@ tr:hover td { background: var(--bg-hover); }
   background: var(--border);
 }
 
+/* ── tooltip popup ───────────────────────────────────────────────────────── */
+
+.tooltip-popup {
+  position: fixed;
+  z-index: 9999;
+  max-width: 270px;
+  background: #2A2A38;
+  color: var(--ink);
+  border: 1px solid var(--border-md);
+  border-radius: 9px;
+  padding: 9px 13px;
+  font-size: 0.75rem;
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  line-height: 1.55;
+  pointer-events: none;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+  display: none;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.tooltip-popup.visible {
+  display: block;
+  opacity: 1;
+}
+
+/* ── info icon ───────────────────────────────────────────────────────────── */
+
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-md);
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-weight: 700;
+  font-style: normal;
+  font-family: "Inter", sans-serif;
+  cursor: help;
+  margin-left: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: border-color 130ms, color 130ms;
+  user-select: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.info-icon:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Elements with data-tip that aren't interactive get a help cursor */
+[data-tip] { cursor: help; }
+button[data-tip], select[data-tip], input[data-tip], label[data-tip] { cursor: pointer; }
+
 /* ── responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 1080px) {

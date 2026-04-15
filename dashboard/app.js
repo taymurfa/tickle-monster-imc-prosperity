@@ -2356,6 +2356,52 @@ function wireTabNavigation() {
   });
 }
 
+function initTooltips() {
+  const tip = document.getElementById("globalTooltip");
+  if (!tip) return;
+
+  let hideTimer = null;
+
+  function showTip(text, x, y) {
+    clearTimeout(hideTimer);
+    tip.textContent = text;
+    tip.classList.add("visible");
+    positionTip(x, y);
+  }
+
+  function hideTip() {
+    hideTimer = setTimeout(() => tip.classList.remove("visible"), 80);
+  }
+
+  function positionTip(x, y) {
+    const pad = 14;
+    const tw = tip.offsetWidth || 200;
+    const th = tip.offsetHeight || 60;
+    const left = x + pad + tw > window.innerWidth ? x - tw - pad : x + pad;
+    const top  = y + pad + th > window.innerHeight ? y - th - pad : y + pad;
+    tip.style.left = left + "px";
+    tip.style.top  = top  + "px";
+  }
+
+  document.addEventListener("mouseover", e => {
+    const el = e.target.closest("[data-tip]");
+    if (!el) { hideTip(); return; }
+    showTip(el.dataset.tip, e.clientX, e.clientY);
+  });
+
+  document.addEventListener("mousemove", e => {
+    if (!tip.classList.contains("visible")) return;
+    positionTip(e.clientX, e.clientY);
+  });
+
+  document.addEventListener("mouseout", e => {
+    const el = e.target.closest("[data-tip]");
+    if (!el) return;
+    const related = e.relatedTarget;
+    if (!related || !el.contains(related)) hideTip();
+  });
+}
+
 async function main() {
   renderDataFiles();
   wireFileInputs();
@@ -2364,6 +2410,7 @@ async function main() {
   wireCompareControls();
   wireSyntheticControls();
   wireTabNavigation();
+  initTooltips();
   dom.runButton.addEventListener("click", runSimulation);
 
   try {
