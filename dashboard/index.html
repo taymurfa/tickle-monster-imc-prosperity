@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prosperity Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js" defer></script>
+  <script src="app.js" type="module" defer></script>
+</head>
+<body>
+  <div class="background-grid" aria-hidden="true"></div>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <header>
+        <h1>Prosperity Strategy Dashboard</h1>
+        <p>Round 1 backtesting and analysis workspace.</p>
+      </header>
+
+      <section class="panel">
+        <h2>Data Files</h2>
+        <ul class="file-list" id="dataFileList"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>Strategy</h2>
+        <div class="drop-zone" id="dropZone">
+          <p><strong>Drop .py file here</strong></p>
+          <p>or</p>
+          <label class="btn" for="strategyInput">Choose file</label>
+          <input id="strategyInput" type="file" accept=".py" />
+        </div>
+        <div class="strategy-meta" id="strategyMeta">Using bundled strategy</div>
+      </section>
+
+      <section class="panel">
+        <h2>Run</h2>
+
+        <label class="field-label" for="matchingMode">Trade Matching Mode</label>
+        <select id="matchingMode" class="field-input">
+          <option value="all">all</option>
+          <option value="worse">worse</option>
+          <option value="none" selected>none</option>
+        </select>
+
+        <label class="field-label" for="emeraldLimit">INTARIAN_PEPPER_ROOT Limit</label>
+        <input id="emeraldLimit" class="field-input" type="number" value="80" step="1" />
+
+        <label class="field-label" for="tomatoLimit">ASH_COATED_OSMIUM Limit</label>
+        <input id="tomatoLimit" class="field-input" type="number" value="80" step="1" />
+
+        <label class="field-label" for="performanceMode">Chart Quality</label>
+        <select id="performanceMode" class="field-input">
+          <option value="full" selected>full</option>
+          <option value="medium">medium</option>
+          <option value="fast">fast</option>
+        </select>
+
+        <button id="runButton" class="run-btn">Run Simulation</button>
+        <div id="status" class="status">Initializing Pyodide...</div>
+      </section>
+
+      <section class="panel">
+        <h2>Pin Run</h2>
+        <label class="field-label" for="runLabel">Run Label</label>
+        <input id="runLabel" class="field-input" type="text" placeholder="e.g. Pepper v2" />
+        <div class="button-row">
+          <button id="pinRunButton" class="btn" type="button">Pin Current Run</button>
+          <button id="clearPinnedRuns" class="btn btn-secondary" type="button">Clear</button>
+        </div>
+        <ul id="savedRunsList" class="saved-runs-list"></ul>
+      </section>
+
+      <section class="panel metrics">
+        <h2>Metrics</h2>
+        <dl>
+          <dt>Final PnL</dt><dd id="metricFinalPnl">-</dd>
+          <dt>Max Drawdown</dt><dd id="metricMaxDd">-</dd>
+          <dt>Sharpe Ratio</dt><dd id="metricSharpe">-</dd>
+          <dt>Annualized Sharpe</dt><dd id="metricAnnSharpe">-</dd>
+          <dt>Sortino Ratio</dt><dd id="metricSortino">-</dd>
+          <dt>Calmar Ratio</dt><dd id="metricCalmar">-</dd>
+        </dl>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <div class="top-tabs">
+        <button class="tab-btn active" type="button" data-tab-target="overview">Overview</button>
+        <button class="tab-btn" type="button" data-tab-target="analysis">Analysis</button>
+        <button class="tab-btn" type="button" data-tab-target="compare">Compare</button>
+      </div>
+
+      <section class="content" data-tab-panel="overview">
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Portfolio PnL</h2>
+            <span id="tradeCount">Trades: 0</span>
+          </div>
+          <div id="portfolioChart" class="portfolio-chart"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Product Charts</h2>
+          </div>
+          <div id="productCharts" class="product-chart-grid"></div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-title-row">
+            <h2>Recent Simulated Fills</h2>
+            <div class="button-row">
+              <button id="exportFillsCsv" class="btn" type="button">Export Fills CSV</button>
+              <button id="exportEquityCsv" class="btn" type="button">Export Equity CSV</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="fillsTable">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Timestamp</th>
+                  <th>Product</th>
+                  <th>Side</th>
+                  <th>Price</th>
+                  <th>Qty</th>
+                  <th>Position</th>
+                  <th>Realized PnL</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="content overview-hidden" data-tab-panel="analysis">
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Analysis Filters</h2>
+          </div>
+          <div class="analysis-grid">
+            <div>
+              <label class="field-label" for="analysisProduct">Product</label>
+              <select id="analysisProduct" class="field-input"></select>
+            </div>
+            <div>
+              <label class="field-label" for="analysisSide">Side</label>
+              <select id="analysisSide" class="field-input">
+                <option value="ALL" selected>ALL</option>
+                <option value="BUY">BUY</option>
+                <option value="SELL">SELL</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="analysisMinQty">Min Fill Qty</label>
+              <input id="analysisMinQty" class="field-input" type="number" value="0" min="0" step="1" />
+            </div>
+            <div>
+              <label class="field-label" for="sizeBucket">Size Bucket</label>
+              <select id="sizeBucket" class="field-input">
+                <option value="all" selected>all</option>
+                <option value="small">small (1-5)</option>
+                <option value="medium">medium (6-15)</option>
+                <option value="large">large (16+)</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="analysisNormalize">Price View</label>
+              <select id="analysisNormalize" class="field-input">
+                <option value="raw" selected>Raw</option>
+                <option value="mid">Price - Mid</option>
+                <option value="ref">Price - Fair/Ref</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="analysisTimelineSort">Timeline Sort</label>
+              <select id="analysisTimelineSort" class="field-input">
+                <option value="time" selected>Time</option>
+                <option value="impact">PnL Impact</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="analysisBookView">Book View</label>
+              <select id="analysisBookView" class="field-input">
+                <option value="auto" selected>Auto</option>
+                <option value="standard">Standard Price</option>
+                <option value="fixed">Fixed Edge View</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="analysisTraderId">Trader ID</label>
+              <select id="analysisTraderId" class="field-input">
+                <option value="ALL" selected>ALL</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="analysis-toggle-row">
+            <label class="checkbox-pill"><input id="showOwnFills" type="checkbox" checked /> <span>Own Fills</span></label>
+            <label class="checkbox-pill"><input id="showMarketTrades" type="checkbox" checked /> <span>Market Trades</span></label>
+            <label class="checkbox-pill"><input id="classifyTrades" type="checkbox" /> <span>Classify Trades</span></label>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Event Timeline</h2>
+            <span id="analysisEventSummary">No notable events.</span>
+          </div>
+          <div id="analysisEventStrip" class="event-strip"></div>
+        </div>
+
+        <div class="two-col-grid">
+          <div class="chart-card">
+            <div class="chart-title-row">
+              <h2>Top of Book + Fills</h2>
+            </div>
+            <div id="analysisBookChart" class="analysis-chart"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title-row">
+              <h2>Position + Product PnL</h2>
+            </div>
+            <div id="analysisPositionChart" class="analysis-chart"></div>
+          </div>
+        </div>
+
+        <div class="two-col-grid">
+          <div class="chart-card">
+            <div class="chart-title-row">
+              <h2>Timestamp Inspector</h2>
+              <span id="analysisSelectedTs">No timestamp selected.</span>
+            </div>
+            <pre id="analysisTimestampDetail" class="inspector-block"></pre>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title-row">
+              <h2>Strategy State</h2>
+            </div>
+            <pre id="analysisStateDetail" class="inspector-block"></pre>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Indicator Overlays</h2>
+            <span id="overlayStatus">No numeric traderData indicators found.</span>
+          </div>
+          <div id="overlayCheckboxes" class="overlay-checkboxes"></div>
+          <div id="indicatorChart" class="analysis-chart"></div>
+        </div>
+
+        <div class="two-col-grid">
+          <div class="table-card">
+            <div class="table-title-row">
+              <h2>Filtered Fills</h2>
+            </div>
+            <div class="table-wrap">
+              <table id="analysisFillsTable">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Timestamp</th>
+                    <th>Side</th>
+                    <th>Price</th>
+                    <th>Qty</th>
+                    <th>Position</th>
+                    <th>Edge vs Touch</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="table-card">
+            <div class="table-title-row">
+              <h2>Missed Opportunities</h2>
+              <span id="analysisMissedCount">Missed: 0</span>
+            </div>
+            <div class="table-wrap">
+              <table id="analysisMissedTable">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Timestamp</th>
+                    <th>Side</th>
+                    <th>Touch Price</th>
+                    <th>Touch Qty</th>
+                    <th>Filled Qty</th>
+                    <th>Missed Qty</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="content overview-hidden" data-tab-panel="compare">
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Saved Runs</h2>
+          </div>
+          <p class="muted-copy">Pinned runs overlay on the main portfolio chart automatically. Use the list in the sidebar to manage them.</p>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <h2>Synthetic / Spread Formula</h2>
+          </div>
+          <div class="analysis-grid">
+            <div>
+              <label class="field-label" for="syntheticRun">Run</label>
+              <select id="syntheticRun" class="field-input">
+                <option value="Current Run" selected>Current Run</option>
+              </select>
+            </div>
+            <div class="span-3">
+              <label class="field-label" for="syntheticFormula">Formula</label>
+              <input id="syntheticFormula" class="field-input" type="text" placeholder="e.g. INTARIAN_PEPPER_ROOT - ASH_COATED_OSMIUM" />
+            </div>
+          </div>
+          <div id="syntheticChart" class="analysis-chart"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>
