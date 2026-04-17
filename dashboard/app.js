@@ -7,8 +7,8 @@ const DATA_FILES = [
   "trades_round_1_day_0.csv",
 ];
 
-const DATA_BASE_PATH = "../ROUND1";
-const DEFAULT_STRATEGY_PATH = "../mm_strategy.py";
+const DATA_BASE_PATH = "ROUND_1/ROUND1";
+const DEFAULT_STRATEGY_PATH = "ROUND_1/mm_strategy.py";
 
 const dom = {
   dataFileList: document.getElementById("dataFileList"),
@@ -2823,12 +2823,17 @@ async function main() {
   setStatus("Initializing Pyodide...");
   try {
     await ensurePyodide();
-    await loadDefaultStrategy();
-    setStatus("Ready.");
   } catch (error) {
     console.error(error);
     setStatus(error?.message || String(error), true);
+    return;
   }
+  try {
+    await loadDefaultStrategy();
+  } catch {
+    dom.strategyMeta.textContent = "No bundled strategy — drop a .py file to begin.";
+  }
+  setStatus("Ready.");
 }
 
 main();
