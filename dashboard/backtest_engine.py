@@ -400,17 +400,16 @@ def _match_sell_order(
 
 
 def _compute_metrics(day_equity_paths: list[list[float]]) -> dict[str, float | None]:
-    stitched: list[float] = []
-    offset = 0.0
+    """Compute metrics from per-tick MTM equity paths.
 
-    for day_levels in day_equity_paths:
-        if not day_levels:
-            continue
-        for value in day_levels:
-            stitched.append(offset + value)
-        offset += day_levels[-1]
-
-    if not stitched:
+    final_pnl  = MTM at last tick = realized cash + pos * final_mid
+                 (equivalent to competition liquidation score).
+    max_dd_abs = drawdown measured only at *day-end* equity values to avoid
+                 penalising intraday inventory float (positions are held to
+                 period end, so mid-day MTM dips are not realised losses).
+    sharpe     = mean / std of *incremental* daily PnL (not cumulative levels).
+    """
+    if not day_equity_paths or not any(day_equity_paths):
         return {
             "final_pnl": 0.0,
             "max_drawdown_abs": 0.0,
@@ -421,12 +420,41 @@ def _compute_metrics(day_equity_paths: list[list[float]]) -> dict[str, float | N
             "calmar": None,
         }
 
-    final_pnl = stitched[-1]
+    # Stitched full curve (MTM) — used only for final_pnl
+    stitched_final = 0.0
+    for day_levels in day_equity_paths:
+        if day_levels:
+            stitched_final += day_levels[-1]
+    final_pnl = stitched_final
 
-    hwm = stitched[0]
+    # Cumulative day-end equity (used for Sharpe / Sortino returns)
+    day_end_equity: list[float] = []
+    cum = 0.0
+    for day_levels in day_equity_paths:
+        if day_levels:
+            cum += day_levels[-1]
+            day_end_equity.append(cum)
+
+    # MaxDD sampled at every 1/10th of each day (10 evenly-spaced points per day).
+    # This captures meaningful intraday swings without penalising every noisy tick.
+    dd_samples: list[float] = []
+    offset = 0.0
+    for day_levels in day_equity_paths:
+        if not day_levels:
+            continue
+        n = len(day_levels)
+        # Pick indices: 0, n//10, 2*n//10, ..., 9*n//10, n-1  (always include last)
+        indices = sorted(set(
+            [int(round(i * (n - 1) / 10)) for i in range(11)]
+        ))
+        for idx in indices:
+            dd_samples.append(offset + day_levels[idx])
+        offset += day_levels[-1]
+
+    hwm = dd_samples[0]
     max_dd_abs = 0.0
     max_dd_pct: float | None = None
-    for e in stitched:
+    for e in dd_samples:
         hwm = max(hwm, e)
         dd = hwm - e
         max_dd_abs = max(max_dd_abs, dd)
@@ -434,22 +462,30 @@ def _compute_metrics(day_equity_paths: list[list[float]]) -> dict[str, float | N
             pct = dd / hwm
             max_dd_pct = pct if max_dd_pct is None else max(max_dd_pct, pct)
 
-    day_finals = [levels[-1] for levels in day_equity_paths if levels]
+    # Incremental daily PnL for Sharpe / Sortino
+    # day_returns[0] = how much was made on day 0
+    # day_returns[i] = day_end_equity[i] - day_end_equity[i-1]  for i > 0
+    day_returns = [day_end_equity[0]] + [
+        day_end_equity[i] - day_end_equity[i - 1]
+        for i in range(1, len(day_end_equity))
+    ]
+
     sharpe = None
     sortino = None
     ann_sharpe = None
-    if len(day_finals) >= 2:
-        stdev_val = statistics.stdev(day_finals)
+    if len(day_returns) >= 2:
+        stdev_val = statistics.stdev(day_returns)
+        mean_ret  = statistics.mean(day_returns)
         if stdev_val != 0:
-            sharpe = statistics.mean(day_finals) / stdev_val
+            sharpe     = mean_ret / stdev_val
             ann_sharpe = sharpe * math.sqrt(252)
 
-        downside_sq = sum((min(0.0, r)) ** 2 for r in day_finals)
-        downside = math.sqrt(downside_sq / len(day_finals)) if day_finals else 0.0
+        downside_sq = sum((min(0.0, r)) ** 2 for r in day_returns)
+        downside = math.sqrt(downside_sq / len(day_returns))
         if downside == 0:
-            sortino = math.inf if statistics.mean(day_finals) > 0 else None
+            sortino = math.inf if mean_ret > 0 else None
         else:
-            sortino = statistics.mean(day_finals) / downside
+            sortino = mean_ret / downside
 
     calmar = final_pnl / max_dd_abs if max_dd_abs > 0 else None
 
@@ -560,7 +596,7 @@ def run_dashboard_backtest(
 
     fill_seq = 0
 
-    for dataset in datasets:
+    for _ds_idx, dataset in enumerate(datasets):
         prices_by_ts, products, day_num = dataset["prices"]
         trades_by_ts = dataset["trades"]
 
