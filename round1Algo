@@ -1,0 +1,368 @@
+from datamodel import Order, TradingState
+from typing import Any, Dict, List, Optional
+import json
+import math
+
+PEPPER = "INTARIAN_PEPPER_ROOT"
+OSMIUM = "ASH_COATED_OSMIUM"
+
+LIMITS: Dict[str, int] = {
+    PEPPER: 80,
+    OSMIUM: 80,
+}
+
+# ── Osmium: stable / mean-reverting ──────────────────────────────────────────
+# Tight spread, strong skew to keep inventory near zero.
+# spread_offset  — ticks either side of reservation for passive quotes
+# taker_edge     — take any price this many ticks better than fair (taker leg,
+#                  ensures fills in "none" matching mode; must be < spread_offset)
+OSMIUM_SPREAD_OFFSET = 2.5   # widened: let market come to you
+OSMIUM_TAKER_EDGE    = 0.5   # take asks below fair-0.5 or bids above fair+0.5
+OSMIUM_SKEW_COEFF    = 0.10  # linear skew base; quadratic kicks in >50% limit
+OSMIUM_SKEW_QUAD_MUL = 30.0  # quadratic skew multiplier
+OSMIUM_QUOTE_SIZE    = 8     # units per passive chunk
+OSMIUM_TAKE_SIZE     = 5     # reduced: force algo to be a maker
+OSMIUM_EMERGENCY_THR = 75
+OSMIUM_EMA_ALPHA     = 0.25
+
+# ── Pepper Root: volatile / trending ─────────────────────────────────────────
+# Dynamic spread (from live book), long bias via inventory lean, soft skew.
+PEPPER_SPREAD_MIN    = 4.0   # floor for dynamic spread
+PEPPER_INVENTORY_LEAN = 2.0  # upward fair-value lean → long bias
+PEPPER_TAKER_EDGE    = 1.5
+PEPPER_SKEW_COEFF    = 0.02  # soft skew: won't force out long unless price spikes
+PEPPER_QUOTE_SIZE    = 6
+PEPPER_TAKE_SIZE     = 8
+PEPPER_EMERGENCY_THR = 75
+PEPPER_EMA_ALPHA     = 0.15
+
+
+def _clamp(v: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, v))
+
+
+class Trader:
+    def run(self, state: TradingState) -> tuple:
+        data = self._load_state(state.traderData)
+        result: Dict[str, List[Order]] = {}
+
+        if OSMIUM in state.order_depths:
+            s = self._get_product_state(data, "o")
+            result[OSMIUM], data["o"] = self._trade_osmium(
+                state, s,
+            )
+
+        if PEPPER in state.order_depths:
+            s = self._get_product_state(data, "p")
+            result[PEPPER], data["p"] = self._trade_pepper(
+                state, s,
+            )
+
+        return result, 0, json.dumps(data, separators=(",", ":"))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Core per-product logic
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _trade_osmium(
+        self,
+        state: TradingState,
+        product_state: Dict[str, Any],
+    ) -> tuple[List[Order], Dict[str, Any]]:
+        product = OSMIUM
+        order_depth = state.order_depths[product]
+        position = state.position.get(product, 0)
+        limit = LIMITS[product]
+        book = self._book_snapshot(order_depth)
+        orders: List[Order] = []
+        tracker = {"buy": 0, "sell": 0}
+
+        # ── 1. Fair value via microprice EMA ──────────────────────────────────
+        micro = book["micro"]
+        last_ema = self._safe_float(product_state.get("e"), micro if micro is not None else 0.0)
+        ema = ((1.0 - OSMIUM_EMA_ALPHA) * last_ema + OSMIUM_EMA_ALPHA * micro
+               if micro is not None else last_ema)
+        next_state = {"e": round(ema, 4)}
+        if ema == 0.0:
+            return orders, next_state
+
+        # ── 2. Quadratic skew reservation price ───────────────────────────────
+        #    Linear skew for |pos| <= 50% limit.
+        #    Quadratic adjustment added once |pos| exceeds 50% of limit.
+        #    Formula: adj = sign(pos) * (pos/limit)^2 * OSMIUM_SKEW_QUAD_MUL
+        linear_adj = position * OSMIUM_SKEW_COEFF
+        ratio = position / limit  # in [-1, 1]
+        quad_adj = math.copysign(ratio ** 2, position) * OSMIUM_SKEW_QUAD_MUL
+        reservation = ema - linear_adj - quad_adj
+
+        # ── 3. Emergency taker ────────────────────────────────────────────────
+        if position >= OSMIUM_EMERGENCY_THR:
+            if book["best_bid"] is not None:
+                relief = min(position - OSMIUM_EMERGENCY_THR + 1,
+                             self._sell_capacity(position, limit, tracker))
+                self._append_order(product, int(book["best_bid"]), -relief,
+                                   position, limit, tracker, orders)
+        elif position <= -OSMIUM_EMERGENCY_THR:
+            if book["best_ask"] is not None:
+                relief = min((-position) - OSMIUM_EMERGENCY_THR + 1,
+                             self._buy_capacity(position, limit, tracker))
+                self._append_order(product, int(book["best_ask"]), relief,
+                                   position, limit, tracker, orders)
+
+        # ── 4. Taker leg ──────────────────────────────────────────────────────
+        buy_threshold  = reservation - OSMIUM_TAKER_EDGE
+        sell_threshold = reservation + OSMIUM_TAKER_EDGE
+        self._take_asks(product, order_depth, buy_threshold,
+                        position, limit, tracker, orders, OSMIUM_TAKE_SIZE)
+        self._take_bids(product, order_depth, sell_threshold,
+                        position, limit, tracker, orders, OSMIUM_TAKE_SIZE)
+
+        # ── 5. Passive maker quotes ───────────────────────────────────────────
+        bid_price = self._passive_bid_price(
+            reservation - OSMIUM_SPREAD_OFFSET, book["best_bid"], book["best_ask"])
+        if bid_price is not None:
+            qty = min(OSMIUM_QUOTE_SIZE, self._buy_capacity(position, limit, tracker))
+            if qty > 0:
+                self._append_order(product, bid_price, qty, position, limit, tracker, orders)
+
+        ask_price = self._passive_ask_price(
+            reservation + OSMIUM_SPREAD_OFFSET, book["best_bid"], book["best_ask"])
+        if ask_price is not None:
+            qty = min(OSMIUM_QUOTE_SIZE, self._sell_capacity(position, limit, tracker))
+            if qty > 0:
+                self._append_order(product, ask_price, -qty, position, limit, tracker, orders)
+
+        return orders, next_state
+
+    def _trade_pepper(
+        self,
+        state: TradingState,
+        product_state: Dict[str, Any],
+    ) -> tuple[List[Order], Dict[str, Any]]:
+        product = PEPPER
+        order_depth = state.order_depths[product]
+        position = state.position.get(product, 0)
+        limit = LIMITS[product]
+        book = self._book_snapshot(order_depth)
+        orders: List[Order] = []
+        tracker = {"buy": 0, "sell": 0}
+
+        # ── 1. Fair value via microprice EMA + inventory lean ─────────────────
+        #    +PEPPER_INVENTORY_LEAN shifts quotes up → more likely to buy,
+        #    less likely to sell → natural long bias without hardcoding.
+        micro = book["micro"]
+        last_ema = self._safe_float(product_state.get("e"), micro if micro is not None else 0.0)
+        ema = ((1.0 - PEPPER_EMA_ALPHA) * last_ema + PEPPER_EMA_ALPHA * micro
+               if micro is not None else last_ema)
+        next_state = {"e": round(ema, 4)}
+        if ema == 0.0:
+            return orders, next_state
+
+        fair = ema + PEPPER_INVENTORY_LEAN  # biased fair value
+
+        # ── 2. Dynamic spread from live book (min PEPPER_SPREAD_MIN) ──────────
+        if book["spread"] is not None:
+            spread_offset = max(PEPPER_SPREAD_MIN, book["spread"] * 0.8)
+        else:
+            spread_offset = PEPPER_SPREAD_MIN
+
+        # ── 3. Reservation price: soft skew toward neutral inventory ──────────
+        reservation = fair - position * PEPPER_SKEW_COEFF
+
+        # ── 4. Emergency taker ────────────────────────────────────────────────
+        if position >= PEPPER_EMERGENCY_THR:
+            if book["best_bid"] is not None:
+                relief = min(position - PEPPER_EMERGENCY_THR + 1,
+                             self._sell_capacity(position, limit, tracker))
+                self._append_order(product, int(book["best_bid"]), -relief,
+                                   position, limit, tracker, orders)
+        elif position <= -PEPPER_EMERGENCY_THR:
+            if book["best_ask"] is not None:
+                relief = min((-position) - PEPPER_EMERGENCY_THR + 1,
+                             self._buy_capacity(position, limit, tracker))
+                self._append_order(product, int(book["best_ask"]), relief,
+                                   position, limit, tracker, orders)
+
+        # ── 5. Taker leg ──────────────────────────────────────────────────────
+        buy_threshold  = reservation - PEPPER_TAKER_EDGE
+        sell_threshold = reservation + PEPPER_TAKER_EDGE
+        self._take_asks(product, order_depth, buy_threshold,
+                        position, limit, tracker, orders, PEPPER_TAKE_SIZE)
+        self._take_bids(product, order_depth, sell_threshold,
+                        position, limit, tracker, orders, PEPPER_TAKE_SIZE)
+
+        # ── 6. Passive maker quotes ───────────────────────────────────────────
+        bid_price = self._passive_bid_price(
+            reservation - spread_offset, book["best_bid"], book["best_ask"])
+        if bid_price is not None:
+            qty = min(PEPPER_QUOTE_SIZE, self._buy_capacity(position, limit, tracker))
+            if qty > 0:
+                self._append_order(product, bid_price, qty, position, limit, tracker, orders)
+
+        ask_price = self._passive_ask_price(
+            reservation + spread_offset, book["best_bid"], book["best_ask"])
+        if ask_price is not None:
+            qty = min(PEPPER_QUOTE_SIZE, self._sell_capacity(position, limit, tracker))
+            if qty > 0:
+                self._append_order(product, ask_price, -qty, position, limit, tracker, orders)
+
+        return orders, next_state
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Order book helpers
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _book_snapshot(self, order_depth: Any) -> Dict[str, Optional[float]]:
+        buy_orders  = getattr(order_depth, "buy_orders",  {}) or {}
+        sell_orders = getattr(order_depth, "sell_orders", {}) or {}
+
+        best_bid = max(buy_orders)  if buy_orders  else None
+        best_ask = min(sell_orders) if sell_orders else None
+
+        if best_bid is not None and best_ask is not None:
+            mid     = (best_bid + best_ask) / 2.0
+            bid_vol = max(0, int( buy_orders.get(best_bid, 0)))
+            ask_vol = max(0, int(-sell_orders.get(best_ask, 0)))
+            if bid_vol > 0 and ask_vol > 0:
+                micro = (best_bid * ask_vol + best_ask * bid_vol) / (bid_vol + ask_vol)
+            else:
+                micro = mid
+        elif best_bid is not None:
+            mid = micro = float(best_bid)
+        elif best_ask is not None:
+            mid = micro = float(best_ask)
+        else:
+            mid = micro = None
+
+        spread = (best_ask - best_bid) if (best_bid is not None and best_ask is not None) else None
+        return {"best_bid": best_bid, "best_ask": best_ask,
+                "mid": mid, "micro": micro, "spread": spread}
+
+    def _take_asks(
+        self,
+        product: str,
+        order_depth: Any,
+        max_price: float,
+        position: int,
+        limit: int,
+        tracker: Dict[str, int],
+        orders: List[Order],
+        max_total: int,
+    ) -> None:
+        remaining = max_total
+        for ask_price in sorted((getattr(order_depth, "sell_orders", {}) or {}).keys()):
+            if ask_price > max_price or remaining <= 0:
+                break
+            available = max(0, int(-(order_depth.sell_orders.get(ask_price, 0))))
+            if available <= 0:
+                continue
+            qty = min(available, remaining, self._buy_capacity(position, limit, tracker))
+            if qty <= 0:
+                break
+            self._append_order(product, ask_price, qty, position, limit, tracker, orders)
+            remaining -= qty
+
+    def _take_bids(
+        self,
+        product: str,
+        order_depth: Any,
+        min_price: float,
+        position: int,
+        limit: int,
+        tracker: Dict[str, int],
+        orders: List[Order],
+        max_total: int,
+    ) -> None:
+        remaining = max_total
+        for bid_price in sorted((getattr(order_depth, "buy_orders", {}) or {}).keys(), reverse=True):
+            if bid_price < min_price or remaining <= 0:
+                break
+            available = max(0, int(order_depth.buy_orders.get(bid_price, 0)))
+            if available <= 0:
+                continue
+            qty = min(available, remaining, self._sell_capacity(position, limit, tracker))
+            if qty <= 0:
+                break
+            self._append_order(product, bid_price, -qty, position, limit, tracker, orders)
+            remaining -= qty
+
+    def _passive_bid_price(
+        self,
+        desired: float,
+        best_bid: Optional[float],
+        best_ask: Optional[float],
+    ) -> Optional[int]:
+        price = int(math.floor(desired))
+        if best_bid is not None:
+            price = min(price, int(best_bid) + 1)
+        if best_ask is not None:
+            price = min(price, int(best_ask) - 1)
+        return price if (best_ask is None or price < best_ask) else None
+
+    def _passive_ask_price(
+        self,
+        desired: float,
+        best_bid: Optional[float],
+        best_ask: Optional[float],
+    ) -> Optional[int]:
+        price = int(math.ceil(desired))
+        if best_ask is not None:
+            price = max(price, int(best_ask) - 1)
+        if best_bid is not None:
+            price = max(price, int(best_bid) + 1)
+        return price if (best_bid is None or price > best_bid) else None
+
+    def _append_order(
+        self,
+        product: str,
+        price: int,
+        quantity: int,
+        position: int,
+        limit: int,
+        tracker: Dict[str, int],
+        orders: List[Order],
+    ) -> None:
+        quantity = int(quantity)
+        price    = int(price)
+        if quantity > 0:
+            quantity = min(quantity, self._buy_capacity(position, limit, tracker))
+            if quantity <= 0:
+                return
+            tracker["buy"] += quantity
+        elif quantity < 0:
+            sell_qty = min(-quantity, self._sell_capacity(position, limit, tracker))
+            if sell_qty <= 0:
+                return
+            quantity = -sell_qty
+            tracker["sell"] += sell_qty
+        else:
+            return
+        orders.append(Order(product, price, quantity))
+
+    def _buy_capacity(self, position: int, limit: int, tracker: Dict[str, int]) -> int:
+        return max(0, limit - (position + tracker["buy"]))
+
+    def _sell_capacity(self, position: int, limit: int, tracker: Dict[str, int]) -> int:
+        return max(0, limit + (position - tracker["sell"]))
+
+    def _live_position(self, position: int, tracker: Dict[str, int]) -> int:
+        return position + tracker["buy"] - tracker["sell"]
+
+    def _load_state(self, raw_state: str) -> Dict[str, Any]:
+        if not raw_state:
+            return {}
+        try:
+            data = json.loads(raw_state)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _get_product_state(self, data: Dict[str, Any], key: str) -> Dict[str, Any]:
+        val = data.get(key, {})
+        return val if isinstance(val, dict) else {}
+
+    def _safe_float(self, value: Any, default: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
