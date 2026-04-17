@@ -1,0 +1,421 @@
+================================================================================
+  IMC PROSPERITY TRADING COMPETITION — ROUND 1 MASTER OVERVIEW
+  For future session context and iteration guidance
+================================================================================
+
+────────────────────────────────────────────────────────────────────────────────
+1. COMPETITION STRUCTURE
+────────────────────────────────────────────────────────────────────────────────
+
+- Competition: IMC Prosperity (algorithmic trading competition)
+- Platform: prosperity.imc.com — submit a Python file, it runs against historical
+  data + competing bots. Score = total PnL across all days.
+- Submission: Push mm_strategy.py to the main branch of the GitHub repo.
+  The platform pulls from: https://github.com/taymurfa/tickle-monster-imc-prosperity
+- Each round provides new products and 3 days of historical data (days -2, -1, 0).
+- The graded "out-of-sample" test is run by IMC on data you never see.
+  You only see your score after submission.
+
+Round 1 products:
+  - ASH_COATED_OSMIUM (OSMIUM) — position limit ±80
+  - INTARIAN_PEPPER_ROOT (PEPPER) — position limit ±80
+
+The datamodel is provided by IMC. Key objects:
+  TradingState: contains order_depths, position, traderData (persistent string)
+  Order(product, price, quantity): positive qty = buy, negative qty = sell
+  Return from run(): (dict of orders, 0, json string of new traderData)
+
+
+────────────────────────────────────────────────────────────────────────────────
+2. DATA OBSERVED (Round 1 Historical Data)
+────────────────────────────────────────────────────────────────────────────────
+
+Data lives at: C:\Users\mitch\OneDrive - purdue.edu\Other\IP4\Round 1 Algo Data\
+Files: prices_round_1_day_{-2,-1,0}.csv and trades_round_1_day_{-2,-1,0}.csv
+Format: semicolon-separated CSV
+
+OSMIUM (ASH_COATED_OSMIUM):
+  - Mean-reverting asset. Price oscillates around a slowly drifting mean.
+  - Spread is almost always 4+ ticks wide (the bot market is wide).
+  - There is genuine edge in being the passive market maker inside the bot spread.
+  - No persistent directional trend across days.
+  - Inventory accumulated during one session reverts naturally.
+  - Mid price roughly stable (tight std relative to spread width).
+
+PEPPER (INTARIAN_PEPPER_ROOT):
+  - Strongly trending asset. Price rises at approximately 0.001 ticks/timestamp.
+  - This is ~1 tick per 1000 timestamps, consistent across ALL 3 days.
+  - Strategy: accumulate a large long position early, hold it, capture the trend.
+  - The PnL comes almost entirely from mark-to-market appreciation of the position.
+  - Pepper PnL in final strategy: ~78,514 out of total ~290,562.
+  - The trend slope of 0.001 is a key empirical constant — verify in Round 2.
+
+KEY INSIGHT: These two products require fundamentally different strategies.
+  OSMIUM = market making (earn spread, stay flat)
+  PEPPER = directional accumulation (get long early, stay long)
+
+
+────────────────────────────────────────────────────────────────────────────────
+3. BACKTESTING INFRASTRUCTURE
+────────────────────────────────────────────────────────────────────────────────
+
+Main runner: python generate_excel.py
+  - Runs the full backtest against all 3 days of Round 1 data
+  - Runtime: ~15 seconds
+  - Outputs: mm_strategy_output.xlsx (detailed fill analysis)
+  - Also prints diagnostics to stdout (PnL, fills, edge, position stats)
+
+Key diagnostic output fields:
+  Final PnL      — total score (what matters for leaderboard)
+  Maker fills    — passive fills (we posted and got hit)
+  Taker fills    — aggressive fills (we crossed the spread)
+  Maker %        — what fraction of fills were passive
+  Total Edge     — sum of (fill_price - fair_value) for all fills
+  Avg |Position| — average absolute inventory held (Osmium)
+  Final MTM PnL  — mark-to-market PnL per product
+
+Sim variance: ±200 PnL. Any improvement < 300 should be treated as noise.
+Any improvement > 500 is a real signal. ~1000+ is definitive.
+
+Sweep scripts (all in repo root):
+  sweep_ac.py        — sweeps OSMIUM_SKEW_COEFF and TAKER_EDGE
+  sweep_pepper.py    — exhaustive sweep of all Pepper params
+  sweep_osmium.py    — sweeps all 5 untested Osmium params (created Round 1)
+  sweep_ideas.py     — tests 8 specific strategy improvement ideas
+  sweep_final.py     — fine-tune sweep for SKEW_QUAD_MUL range
+
+HOW TO WRITE A SWEEP SCRIPT:
+  1. Read mm_strategy.py into a variable (orig = open(...).read())
+  2. Use re.sub() with raw strings to swap parameter values
+  3. Write modified version back to mm_strategy.py
+  4. Run subprocess(['python', 'generate_excel.py'], capture_output=True)
+  5. Parse "Final PnL: X" from stdout with re.search()
+  6. ALWAYS restore mm_strategy.py at the end (write orig back)
+  CRITICAL: Use raw strings for re.sub replacement (r'\g<1>') to avoid
+  SyntaxWarning on \g escape sequences in newer Python (3.14+).
+
+CRITICAL SAFETY RULE: sweep scripts that modify mm_strategy.py MUST restore it.
+  The bug that caused a prior session loss: restore() wrote an empty string.
+  Always verify the restore step actually writes orig, not an empty string.
+  Before any sweep, manually confirm: Get-Content mm_strategy.py | Measure-Object -Line
+
+
+────────────────────────────────────────────────────────────────────────────────
+4. FINAL STRATEGY — mm_strategy.py (committed as RoundOneFinalStrategy)
+────────────────────────────────────────────────────────────────────────────────
+
+FINAL PnL: 290,562  (vs original starting score of ~251,504 live, ~289,467 sim)
+Commit: c26bc91 on main branch
+
+── OSMIUM STRATEGY: Mean-Reverting Market Maker ──
+
+Core model:
+  1. Compute microprice = volume-weighted average of best bid/ask
+  2. EMA-smooth the microprice to get "fair value" (persisted in traderData)
+  3. Apply inventory skew to get "reservation price"
+  4. Quote passively around reservation price
+  5. Take aggressively if a price exceeds edge threshold vs fair value
+
+Reservation price formula:
+  linear_adj = position * SKEW_COEFF           (small linear lean)
+  quad_adj   = sign(pos) * (pos/limit)^2 * SKEW_QUAD_MUL  (quadratic lean)
+  reservation = ema - linear_adj - quad_adj
+
+  The quadratic term kicks in sharply as position approaches the limit.
+  At pos=60 (75% of limit=80): quad_adj = 0.75^2 * 10 = 5.6 ticks
+
+Taker logic (inventory-throttled):
+  - If position is growing toward limit, increase edge required to extend further
+  - If position would reduce toward flat, decrease edge required
+  - excess = max(0, |pos| - THROTTLE_THR)
+  - buy_edge  = TAKER_EDGE + excess * 0.5  (costlier when long)
+  - sell_edge = max(0.1, TAKER_EDGE - excess * 0.3)  (easier to sell when long)
+
+Passive quoting:
+  - adaptive_offset: use 1.5 ticks if spread > 4, else SPREAD_OFFSET (2.5)
+  - bid = floor(reservation - offset), capped at best_bid+1, best_ask-1
+  - ask = ceil(reservation + offset), floored at best_ask-1, best_bid+1
+
+OSMIUM FINAL PARAMETERS:
+  OSMIUM_SPREAD_OFFSET          = 2.5    (ticks either side of reservation)
+  OSMIUM_TAKER_EDGE             = 1.0    (take if >1 tick better than fair)
+  OSMIUM_SKEW_COEFF             = 0.01   (linear skew coefficient)
+  OSMIUM_SKEW_QUAD_MUL          = 10.0   (quadratic skew multiplier) ← KEY PARAM
+  OSMIUM_QUOTE_SIZE             = 12     (units per passive order)
+  OSMIUM_TAKE_SIZE              = 10     (units per taker order) ← improved from 8
+  OSMIUM_EMA_ALPHA              = 0.05   (fair value EMA speed, half-life ~14 ticks)
+  OSMIUM_INVENTORY_THROTTLE_THR = 60     (tighten taker edge above this abs pos)
+
+── PEPPER STRATEGY: Directional Trend Accumulator ──
+
+Core model:
+  fair(t) = base_ema + TREND_SLOPE * timestamp
+  base_ema tracks "implied_base = mid - TREND_SLOPE * ts" (the daily intercept)
+  base_ema is very slow (alpha=0.002) to avoid chasing intraday noise
+
+Accumulation tiers:
+  pos < TAKER_THR (60):      cross the spread aggressively — build position fast
+  TAKER_THR <= pos < 79:     post passive bid at best_bid — earn the spread
+  pos >= 79:                 stop buying entirely (TARGET_POS = 79, not 80)
+                             (79 avoids oscillation at hard limit)
+
+Opportunistic fills (always active):
+  If best_ask <= fair - BAD_ASK_EDGE (5): someone is underpricing, buy everything
+  If best_bid >= fair + BAD_BID_EDGE (8): someone is overpricing, sell to them
+
+Emergency: only if pos >= 80 (hard limit), sell at best_bid to make room.
+
+PEPPER FINAL PARAMETERS:
+  PEPPER_TREND_SLOPE  = 0.001   (ticks per timestamp, empirically observed)
+  PEPPER_BASE_EMA     = 0.002   (very slow intercept tracker)
+  PEPPER_TARGET_POS   = 79      (max long position)
+  PEPPER_TAKER_THR    = 60      (aggressive buy threshold)
+  PEPPER_QUOTE_SIZE   = 15      (passive bid chunk size)
+  PEPPER_TAKER_SIZE   = 15      (aggressive buy chunk size)
+  PEPPER_BAD_BID_EDGE = 8.0     (sell to overbidding bots)
+  PEPPER_BAD_ASK_EDGE = 5.0     (buy from underasking bots)
+  PEPPER_EMERGENCY_THR = 80     (hard limit emergency sell trigger)
+
+
+────────────────────────────────────────────────────────────────────────────────
+5. OPTIMIZATION JOURNEY — What We Tested and What We Found
+────────────────────────────────────────────────────────────────────────────────
+
+Starting baseline: 289,467 (sim)
+
+WHAT IMPROVED (kept):
+
+  1. OSMIUM_TAKE_SIZE: 8 → 10  (+412 PnL)
+     When taker edge exists, taking 2 more units per tick is pure edge capture.
+     Monotonic improvement up to ~10 then flat. Safe change.
+
+  2. OSMIUM_SKEW_QUAD_MUL: 30 → 10  (+645 PnL, net with TAKE_SIZE)
+     The original MUL=30 was too aggressive — 17-tick skew at 75% inventory
+     was refusing good fills. MUL=10 gives 5.6-tick skew at 75%.
+     This is a structural correction, not a curve-fit.
+     AvgPos goes from 12.3 → 16.9 (acceptable, within limits).
+
+  Final combined improvement: +1,095 PnL → 290,562
+
+WHAT WAS TESTED AND REJECTED:
+
+  Pepper ideas (sweep_pepper.py, sweep_ideas.py):
+  - TAKER_THR=79 (pure passive): -8,805 PnL. Passive fills too slow, miss trend.
+  - TAKER_THR=79 (mixed): -225 PnL. Confirmed 60 is optimal.
+  - BAD_ASK_EDGE=4 (more aggressive opportunistic): -491 PnL, 430 false triggers.
+  - Pepper TAKER_SIZE variations: ±30 PnL range, irrelevant.
+
+  Osmium ideas (sweep_osmium.py, sweep_ideas.py):
+  - EMA_ALPHA variants (0.02, 0.03, 0.07, 0.10): all worse or within noise.
+  - SKEW_COEFF variants: 0.01 is optimal (from sweep_ac.py).
+  - QUOTE_SIZE > 12: flat (bot fill sizes cap out, extra units unqueued anyway).
+  - THROTTLE_THR variations: flat for all values 50-80 (rarely activates).
+  - All 8 "ideas" from sweep_ideas.py: zero net improvement.
+
+WHAT LOOKED GOOD BUT WAS RISKY (rejected for overfitting risk):
+
+  - EMA_ALPHA=0.015 + SKEW_QUAD_MUL=2.5: +1,757 PnL total → 291,224
+    REASON REJECTED: AvgPos jumps to 24.2 (MaxPos=76/80). Running 95% of limit
+    on average is a regime bet. If Osmium trends in Round 2, you're pinned.
+    +1,112 extra PnL above MUL=10 is too small relative to tail risk.
+    MUL=2.5 gives only 1.4-tick skew at 75% inventory — nearly no protection.
+
+OVERFITTING ASSESSMENT FRAMEWORK (use in future rounds):
+  - 3 days of training data is very limited. Any param difference < 500 PnL
+    could be noise (sim variance ±200).
+  - Ask: "Does this change AvgPos significantly?" If yes, you're changing
+    how much market risk you carry — that's a regime bet, not pure optimization.
+  - Ask: "Is there a structural reason for this change, or did I just search
+    many values until one looked good?" If the latter, be skeptical.
+  - Changes to SKEW_MUL and TAKER_THR affect position sizing directly.
+    Always check MaxPos and AvgPos in the diagnostics, not just PnL.
+
+
+────────────────────────────────────────────────────────────────────────────────
+6. KEY LESSONS LEARNED (Critical for Future Rounds)
+────────────────────────────────────────────────────────────────────────────────
+
+LESSON 1: VERIFY OSMIUM_TAKER_EDGE BEFORE SUBMISSION
+  The prior live submission scored 251,504 (vs sim 289,467) because sweep_ac.py
+  left OSMIUM_TAKER_EDGE=99.0 in mm_strategy.py. The sweep modified the file
+  and didn't restore it properly before submission.
+  FIX: Always run `grep TAKER_EDGE mm_strategy.py` before every commit.
+  TAKER_EDGE should be 1.0 for normal operation.
+
+LESSON 2: SWEEP SCRIPTS ARE DANGEROUS
+  Any script that modifies mm_strategy.py can corrupt it if it crashes mid-run.
+  Before running any sweep:
+    1. Read the restore logic and confirm it writes orig, not "".
+    2. Do a manual grep of key params AFTER the sweep to verify restoration.
+  Never submit immediately after a sweep without running generate_excel.py
+  and confirming the output matches expectations.
+
+LESSON 3: PEPPER IS ALMOST FULLY OPTIMIZED
+  The Pepper strategy is simple and nearly maxed out. The PnL comes from:
+    - Holding pos=79 for as long as possible (maximize trend capture time)
+    - Getting to pos=79 as fast as possible (aggressive taker below THR=60)
+  The only thing that could improve it in future rounds:
+    - If TREND_SLOPE changes, update it immediately (re-estimate from day -2 data)
+    - If TARGET_POS limit changes, update accordingly
+    - If the trend reverses mid-round, you need a stop-loss (not implemented)
+
+LESSON 4: OSMIUM MARKET MAKING IS WHERE THE COMPLEXITY LIVES
+  The Osmium strategy has many parameters and the interactions are non-trivial.
+  The key insight: the original SKEW_QUAD_MUL=30 was too conservative.
+  A market maker that refuses fills at 75% inventory loses money because:
+    (a) the bid-ask spread is the revenue, and you need fills to earn it
+    (b) the inventory WILL revert anyway (mean-reverting asset)
+  So the correct MUL is the one that balances fill rate vs inventory risk.
+  In Round 1: MUL=10 is the defensible choice. MUL=2.5 might be fine too
+  if Osmium continues to mean-revert.
+
+LESSON 5: MICROPRICE IS BETTER THAN MID
+  Fair value = EMA of microprice (volume-weighted bid/ask), not simple midpoint.
+  This matters because when the book is unbalanced, midpoint is a bad estimate.
+  Microprice: (best_bid * ask_vol + best_ask * bid_vol) / (bid_vol + ask_vol)
+  This correctly leans toward the thinner side of the book.
+
+LESSON 6: PASSIVE VS TAKER TRADEOFF
+  In general: passive fills earn more edge per unit but arrive slowly.
+  Taker fills cost edge but execute immediately.
+  For OSMIUM (mean-reverting): passive is generally better, taker used sparingly
+    for edge that exceeds TAKER_EDGE threshold.
+  For PEPPER (trending): you MUST be aggressive early to capture the trend.
+    A passive-only Pepper strategy loses ~8,800 PnL because the trend runs away.
+
+LESSON 7: TARGET_POS = 79, NOT 80
+  Setting Pepper target at 80 (the hard limit) causes oscillation:
+  you hit 80, must sell, drop to 79, buy again, hit 80, etc.
+  Setting it to 79 eliminates this noise. Always leave 1 unit of headroom.
+
+LESSON 8: TRADERDATA IS YOUR ONLY PERSISTENT STATE
+  The strategy runs fresh each tick. The only memory is traderData (a JSON string).
+  For Osmium: we store {"e": ema_value}
+  For Pepper: we store {"b": base_ema_value}
+  Keep this minimal — large traderData strings slow things down.
+  Keys used: "o" → Osmium state dict, "p" → Pepper state dict
+
+LESSON 9: SIM vs LIVE SCORE DISCREPANCY
+  The backtester is deterministic but not a perfect replica of the live engine.
+  Passive fills that appear in sim may not always trigger live (queue position,
+  bot behavior changes). The sim was consistently ~38,000 higher than live in R1.
+  Some of this was the TAKER_EDGE=99 bug. The rest is sim/live divergence.
+  Takeaway: focus on sim improvements > 500 PnL, but don't over-optimize to sim.
+
+
+────────────────────────────────────────────────────────────────────────────────
+7. FUTURE ROUND ITERATION GUIDE
+────────────────────────────────────────────────────────────────────────────────
+
+STEP 1: UNDERSTAND THE NEW PRODUCTS
+  - Read the competition PDF/problem statement carefully.
+  - For each new product, answer:
+    (a) Is it mean-reverting or trending?
+    (b) What is the typical spread width?
+    (c) Are there bots with predictable patterns?
+    (d) What is the position limit?
+  - Run a quick analysis script on the price CSVs before writing any strategy.
+    Key stats: min/max/mean/std of mid_price, spread distribution, autocorrelation.
+
+STEP 2: CLASSIFY EACH PRODUCT
+  Mean-reverting  → use Osmium-style market maker
+  Trending        → use Pepper-style directional accumulator
+  Unknown         → start with market maker (safer default)
+
+STEP 3: ESTABLISH BASELINE IMMEDIATELY
+  - Copy the Round 1 mm_strategy.py as starting point if products carry over.
+  - Run generate_excel.py immediately to get baseline PnL.
+  - Check that OSMIUM_TAKER_EDGE = 1.0 (not 99.0) BEFORE anything else.
+
+STEP 4: FIRST SWEEPS TO RUN (priority order)
+  1. New product's key directional parameter (e.g., TREND_SLOPE if trending)
+  2. SKEW_QUAD_MUL for any new mean-reverting product
+  3. TAKER_THR for any new directional product
+  4. TARGET_POS for any new directional product (always test 79 vs limit-1)
+  5. TAKE_SIZE for any market maker (often undertested)
+
+STEP 5: SANITY CHECKS BEFORE SWEEPING
+  - Confirm baseline PnL matches expectations (re-run 2-3 times to check variance)
+  - Check sim variance with 3 identical runs (should be ±200 for Round 1 data)
+  - Improvements need to be > 2x sim variance to be real
+
+STEP 6: OVERFITTING GUARD
+  After finding an improvement, ask:
+  - Does AvgPos change significantly? (position sizing changes = regime bets)
+  - Is there a structural explanation, or just a number that fits?
+  - Is the improvement monotonic (always better as you move in one direction)
+    or is it a peak at one specific value? Peaks are riskier.
+  - How large is the improvement vs sim variance? (need >3x to be confident)
+
+STEP 7: FINAL SUBMISSION CHECKLIST
+  □ OSMIUM_TAKER_EDGE = 1.0  (NOT 99.0 or any sweep leftover value)
+  □ Run generate_excel.py one final time, confirm PnL matches expectation
+  □ Check git diff mm_strategy.py — no surprise parameter values
+  □ git add mm_strategy.py; git commit -m "Round{N}FinalStrategy"; git push origin main
+  □ Verify push succeeded on GitHub web UI
+
+
+────────────────────────────────────────────────────────────────────────────────
+8. PARAMETER SENSITIVITY SUMMARY (Round 1 Osmium)
+────────────────────────────────────────────────────────────────────────────────
+
+Parameter              Range Tested    Optimal    Notes
+─────────────────────────────────────────────────────────────────────────────
+SPREAD_OFFSET          1.5–3.5         2.5        Stable, not very sensitive
+TAKER_EDGE             0.5–3.0         1.0        Very sensitive — 99 = disaster
+SKEW_COEFF             0.005–0.02      0.01       Low sensitivity
+SKEW_QUAD_MUL          0–60            10         HIGH sensitivity, key param
+QUOTE_SIZE             6–20            12         Flat above 12 (bot volume cap)
+TAKE_SIZE              4–15            10         Monotone, then flat
+EMA_ALPHA              0.01–0.30       0.05       Sensitive at extremes
+THROTTLE_THR           30–80           60         Flat for 50-80, only affects edge cases
+
+Parameter              Range Tested    Optimal    Notes
+─────────────────────────────────────────────────────────────────────────────
+TREND_SLOPE            N/A             0.001      Empirical, must re-estimate each round
+TARGET_POS             70–79           79         Strong signal: +3,000 PnL per unit
+TAKER_THR              0–79            60         Very sensitive: pure passive = -8,805
+BAD_ASK_EDGE           4–8             5.0        Below 5 = too many false triggers
+BAD_BID_EDGE           6–10            8.0        Not fully swept, reasonable default
+QUOTE_SIZE             10–20           15         Low sensitivity above 15
+TAKER_SIZE             10–20           15         Low sensitivity
+
+
+────────────────────────────────────────────────────────────────────────────────
+9. REPO STRUCTURE
+────────────────────────────────────────────────────────────────────────────────
+
+mm_strategy.py          — THE submission file (only this is graded)
+generate_excel.py       — backtest runner, outputs to mm_strategy_output.xlsx
+backtest_engine.py      — core simulation engine (do not modify)
+sweep_ac.py             — Osmium SKEW_COEFF / TAKER_EDGE sweep
+sweep_pepper.py         — exhaustive Pepper parameter sweep
+sweep_osmium.py         — all untested Osmium params (EMA, MUL, sizes, throttle)
+sweep_ideas.py          — tests specific strategy improvement hypotheses
+sweep_final.py          — fine-tune SKEW_QUAD_MUL around a target range
+dashboard/              — local web dashboard for visualizing backtest results
+ROUND1/                 — Round 1 analysis scripts and data exploration
+Mitchell/               — original backtester infrastructure
+
+Data location:
+  C:\Users\mitch\OneDrive - purdue.edu\Other\IP4\Round 1 Algo Data\
+  prices_round_1_day_{-2,-1,0}.csv   — OHLCV + orderbook snapshots
+  trades_round_1_day_{-2,-1,0}.csv   — trade log
+
+
+────────────────────────────────────────────────────────────────────────────────
+10. QUICK REFERENCE — HOW TO RESUME IN A NEW SESSION
+────────────────────────────────────────────────────────────────────────────────
+
+1. Read this file first.
+2. Check current params: grep "OSMIUM_\|PEPPER_" mm_strategy.py
+3. Confirm baseline: cd repo; python generate_excel.py
+4. Expected Round 1 baseline: ~290,562 PnL
+5. Check TAKER_EDGE = 1.0 (critical safety check)
+6. Look at new round's problem statement for new products.
+7. Start analysis scripts before writing strategy code.
+8. Follow the iteration guide in Section 7.
+
+================================================================================
+  END OF MASTER OVERVIEW — Round 1, April 17 2026
+================================================================================
