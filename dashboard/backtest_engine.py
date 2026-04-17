@@ -4,6 +4,7 @@ import csv
 import io
 import json
 import math
+import re
 import statistics
 import sys
 import types
@@ -11,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 DEFAULT_LIMIT = 50
-LIMITS = {"EMERALDS": 80, "TOMATOES": 80}
+LIMITS = {"INTARIAN_PEPPER_ROOT": 80, "ASH_COATED_OSMIUM": 80}
 
 
 class Listing:
@@ -250,6 +251,7 @@ def _match_buy_order(
                 "quantity": volume,
                 "position": state.position[product],
                 "realized_pnl": profit_loss[product],
+                "fill_type": "taker",
             }
         )
 
@@ -291,6 +293,7 @@ def _match_buy_order(
                 "quantity": volume,
                 "position": state.position[product],
                 "realized_pnl": profit_loss[product],
+                "fill_type": "maker",
             }
         )
 
@@ -343,6 +346,7 @@ def _match_sell_order(
                 "quantity": volume,
                 "position": state.position[product],
                 "realized_pnl": profit_loss[product],
+                "fill_type": "taker",
             }
         )
 
@@ -384,6 +388,7 @@ def _match_sell_order(
                 "quantity": volume,
                 "position": state.position[product],
                 "realized_pnl": profit_loss[product],
+                "fill_type": "maker",
             }
         )
 
@@ -397,12 +402,13 @@ def _match_sell_order(
 def _compute_metrics(day_equity_paths: list[list[float]]) -> dict[str, float | None]:
     stitched: list[float] = []
     offset = 0.0
-    for levels in day_equity_paths:
-        if not levels:
+
+    for day_levels in day_equity_paths:
+        if not day_levels:
             continue
-        shifted = [offset + x for x in levels]
-        stitched.extend(shifted)
-        offset = shifted[-1]
+        for value in day_levels:
+            stitched.append(offset + value)
+        offset += day_levels[-1]
 
     if not stitched:
         return {
@@ -490,6 +496,39 @@ def _parse_limits_override(limits_override_json: str) -> dict[str, int]:
     return parsed
 
 
+def _extract_day_from_name(name: str) -> int:
+    match = re.search(r"day_(-?\d+)\.csv$", name)
+    if not match:
+        raise ValueError(f"Could not extract day from filename: {name}")
+    return int(match.group(1))
+
+
+def _build_datasets(file_map: dict[str, str]) -> list[dict[str, Any]]:
+    price_keys = sorted(
+        [key for key in file_map if key.startswith("prices_round_")],
+        key=_extract_day_from_name,
+    )
+    trade_keys = sorted(
+        [key for key in file_map if key.startswith("trades_round_")],
+        key=_extract_day_from_name,
+    )
+
+    price_by_day = {_extract_day_from_name(key): key for key in price_keys}
+    trade_by_day = {_extract_day_from_name(key): key for key in trade_keys}
+    common_days = sorted(set(price_by_day) & set(trade_by_day))
+
+    if not common_days:
+        raise ValueError("No matching prices/trades day pairs found in file_map")
+
+    return [
+        {
+            "prices": parse_prices_csv(file_map[price_by_day[day]]),
+            "trades": parse_trades_csv(file_map[trade_by_day[day]]),
+        }
+        for day in common_days
+    ]
+
+
 def run_dashboard_backtest(
     strategy_code: str,
     file_map_json: str,
@@ -511,17 +550,7 @@ def run_dashboard_backtest(
 
     trader = trader_cls()
     file_map = json.loads(file_map_json)
-
-    datasets = [
-        {
-            "prices": parse_prices_csv(file_map["prices_round_0_day_-2.csv"]),
-            "trades": parse_trades_csv(file_map["trades_round_0_day_-2.csv"]),
-        },
-        {
-            "prices": parse_prices_csv(file_map["prices_round_0_day_-1.csv"]),
-            "trades": parse_trades_csv(file_map["trades_round_0_day_-1.csv"]),
-        },
-    ]
+    datasets = _build_datasets(file_map)
 
     all_points: list[dict[str, Any]] = []
     all_fills: list[dict[str, Any]] = []
