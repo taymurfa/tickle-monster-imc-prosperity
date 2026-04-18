@@ -1,0 +1,77 @@
+Competition intelligence built from Round 1 results to inform Round 2 strategy.
+Total teams: 22,200. Expected active R2 participants: ~4,000.
+
+================================================================================
+SECTION 1: R1 MANUAL CHALLENGE (math problem, 1 optimal answer)
+================================================================================
+
+Best possible score: 87,995 XIRECs
+
+Score distribution (cumulative teams at or above threshold):
+  Teams     Score threshold   % of best
+  -------   ---------------   ---------
+  1,170     87,995            100%   ← perfect score (includes us)
+  2,213     87,115            99%
+  2,330     83,595            95%
+  2,545     79,195            90%
+  3,174     70,396            80%
+  3,321     61,597            70%
+  3,563     52,797            60%   ← estimated R2 dropout threshold
+  4,100     43,998            50%
+  4,250     35,198            40%
+  4,283     26,399            30%
+  4,332     17,599            20%
+  4,455      8,800            10%
+
+Overall leaderboard percentile vs manual score (0% = top of leaderboard):
+  0%  → 87,995  (top algo teams also aced manual)
+  10% → 87,896
+  20% →  5,000
+  30%+ →     0
+
+Only ~4,500 of 22,200 teams scored > 0 on manual.
+Estimated ~3,563 teams continuing to R2 (scored ≥60% of best = 52,797).
+
+================================================================================
+SECTION 2: R1 ALGO CHALLENGE (3-day trading, XIRECs profit)
+================================================================================
+
+Rank    Algo Score
+------  ----------
+     1     126,000
+    50     111,000
+   200     103,000
+   500     100,000
+ 1,000      98,000
+ 1,500      96,000
+ 2,000      94,600   ← 50th percentile of expected ~4,000 R2 bidders
+ 2,500      91,900
+ 3,000      87,600
+ 3,500      79,900
+ 4,000      59,200
+
+Key observation: scores are heavily compressed at the top — rank 2,000 (94,600)
+is still 75% of rank 1 (126,000). The entire top half of R2 bidders is capable.
+
+================================================================================
+SECTION 3: MAF BID ANALYSIS
+================================================================================
+
+MAF mechanics:
+- One-time fee paid at round start (NOT per day)
+- Top 50% of bids accepted → get 25% extra market volume
+- Backtest runs at 80% of quotes (no MAF). Winning = 80% → 100% of quotes.
+- Estimated EV of winning MAF: ~1,800 XIRECs total across all 3 days
+- Break-even bid: 1,800. Any bid below 1,800 is positive EV if accepted.
+
+Bid strategy:
+- ~4,000 teams expected to bid. Top 2,000 accepted (top 50%).
+- Rank-2,000 team scored 94,600 on algo — still very capable.
+- These teams understand EV. Expected median bid: ~900–1,100 (cluster at 1,000).
+- Top teams (rank 1–200) likely bid 1,400–1,750 to stay under ceiling.
+
+Recommendation: bid 1,201
+- Beats the large round-number cluster at 1,000 and 1,200
+- Comfortably in top 50% (beats the expected median)
+- EV: 1,800 − 1,201 = +599 XIRECs net if accepted
+- Does not chase the top-200 cluster (diminishing returns above ~1,400)

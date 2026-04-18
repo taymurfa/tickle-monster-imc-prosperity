@@ -1,0 +1,7 @@
+We are in 725th place after round 1. 
+
+We achieved a profit of 186,228 from the manual and algo submissions to the round 1 dashboard on imc prosperities website from round 1. 
+
+we tied for 1st place in the manual challenge (as there was one right answer, many groups got to it). 
+
+In the Algo challenge, we came about 800th place out of ~70,000 teams. Overall, this is obviously quite solid. However i want to make sure we do better going into round 2. i want to get first place meaning we can't leave any profit on the table. This is confirmation though that our round 1 ideas were right for the most part (not perfect). The first place team did about 14% better than us on the algo portion of the challenge. So even though we thought we had iterated our algo to near perfect, there was obviously still a lot of alpha left on the table under different strategies. Let's make sure we explore all opportunities in round 2 so there is less of a gap between us and first place. Let's make sure we've done everything we can so we get to first place! 
