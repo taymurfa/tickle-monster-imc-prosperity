@@ -1,14 +1,14 @@
 const DATA_FILES = [
-  "prices_round_1_day_-2.csv",
-  "prices_round_1_day_-1.csv",
-  "prices_round_1_day_0.csv",
-  "trades_round_1_day_-2.csv",
-  "trades_round_1_day_-1.csv",
-  "trades_round_1_day_0.csv",
+  "prices_round_2_day_-1.csv",
+  "prices_round_2_day_0.csv",
+  "prices_round_2_day_1.csv",
+  "trades_round_2_day_-1.csv",
+  "trades_round_2_day_0.csv",
+  "trades_round_2_day_1.csv",
 ];
 
-const DATA_BASE_PATH = "ROUND_1/ROUND1";
-const DEFAULT_STRATEGY_PATH = "ROUND_1/mm_strategy.py";
+const DATA_BASE_PATH = "ROUND_2/ROUND2";
+const DEFAULT_STRATEGY_PATH = "ROUND_2/mm_strategy.py";
 
 const dom = {
   dataFileList: document.getElementById("dataFileList"),
