@@ -24,7 +24,7 @@ New in Round 2:
 
 GitHub repo: https://github.com/taymurfa/tickle-monster-imc-prosperity
 Strategy file: Round 2 Working Files/Round 2 Algo.py
-  (also copied to mm_strategy.py in repo root for submission)
+  THIS is the production file. Do not use mm_strategy.py for R2.
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -466,7 +466,8 @@ Repo root:
 
 Key files:
   Round 2 Working Files/Round 2 Algo.py  — MASTER strategy (edit this)
-  mm_strategy.py              — Submission copy (copy from Round 2 Algo.py before submitting)
+  Round 2 Working Files/Round 2 Algo.py  — PRODUCTION submission file (submit this)
+  mm_strategy.py              — STALE R1 file; do NOT submit for R2
   generate_excel.py           — Local backtester (runs R2 data through strategy)
   dashboard/app.js            — Dashboard entry config
 
