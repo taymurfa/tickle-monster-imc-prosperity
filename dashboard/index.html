@@ -1422,7 +1422,7 @@ table.tbl {
         <span class="section-title">Strategy</span>
         <div style="display:flex;gap:8px">
           <button id="watchButton" class="section-action" type="button" title="Auto-run on file save">Watch</button>
-          <label class="section-action" for="strategyInput" style="cursor:pointer">Browse</label>
+          <button id="strategyBrowseButton" class="section-action" type="button" style="cursor:pointer">Browse</button>
         </div>
       </div>
       <div class="drop" id="dropZone">
@@ -1959,7 +1959,7 @@ table.tbl {
                 <input id="logInput" type="file" accept=".log,.txt,.json,.csv" style="display:none" />
                 <div class="file-pill" id="logMeta" style="position:relative;z-index:1">No log loaded</div>
               </div>
-              <label class="section-action logs-upload-button" for="logInput" style="cursor:pointer">Upload log</label>
+              <button id="logBrowseButton" class="section-action logs-upload-button" type="button" style="cursor:pointer">Upload log</button>
             </div>
           </div>
         </section>

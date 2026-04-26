@@ -2554,9 +2554,11 @@ function bindEvents() {
     }
   });
   if (dom.dropZone) {
-    dom.dropZone.addEventListener("click", (e) => {
-      if (e.target !== dom.strategyInput) dom.strategyInput.click();
-    });
+    dom.dropZone.addEventListener("click", () => dom.strategyInput.click());
+  }
+  const strategyBrowseButton = document.getElementById("strategyBrowseButton");
+  if (strategyBrowseButton) {
+    strategyBrowseButton.addEventListener("click", () => dom.strategyInput.click());
   }
   if (dom.logInput) {
     dom.logInput.addEventListener("change", (e) => {
@@ -2566,9 +2568,11 @@ function bindEvents() {
     });
   }
   if (dom.logDropZone) {
-    dom.logDropZone.addEventListener("click", (e) => {
-      if (e.target !== dom.logInput) dom.logInput.click();
-    });
+    dom.logDropZone.addEventListener("click", () => dom.logInput.click());
+  }
+  const logBrowseButton = document.getElementById("logBrowseButton");
+  if (logBrowseButton) {
+    logBrowseButton.addEventListener("click", () => dom.logInput.click());
   }
   const logDropTargets = [dom.logDropZone, dom.logInput].filter(Boolean);
   for (const target of logDropTargets) {
