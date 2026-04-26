@@ -33,7 +33,7 @@ self.onmessage = async (e) => {
       const progressCallback = (completed, total) => {
         self.postMessage({ type: "progress", completed: Number(completed), total: Number(total) });
       };
-      pyodide.registerJsInternal("dashboard_progress_callback", progressCallback);
+      pyodide.globals.set("dashboard_progress_callback", progressCallback);
 
       // 3. Execute the backtest call
       // Note: run_dashboard_backtest is already defined in the global scope from step 1
