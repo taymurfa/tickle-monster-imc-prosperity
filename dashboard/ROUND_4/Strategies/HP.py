@@ -42,9 +42,6 @@ STRONG_Z = 2.25
 STRONG_EDGE = 14.0
 
 LATE_FLATTEN_TS = 875_000
-INVALIDATION_MAX_UNDERWATER_TICKS = 12.0
-INVALIDATION_MIN_POSITION = 40
-INVALIDATION_REDUCE_SIZE = 8
 MAX_DEBUG_LOGS = 100
 MAX_HISTORY = 120
 
@@ -268,17 +265,13 @@ def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]
     orders: List[Order] = []
 
     late_flatten = trading_state.timestamp >= LATE_FLATTEN_TS and position > 0
-    invalidation = (
-        position >= INVALIDATION_MIN_POSITION
-        and underwater_ticks >= INVALIDATION_MAX_UNDERWATER_TICKS
-        and z_score > -0.25
-    )
     sell_signal = position > 0 and (
         sell_edge > threshold
         and z_score >= SELL_Z
     )
     buy_signal = (
         position < PRACTICAL_CAP
+        and trading_state.timestamp < LATE_FLATTEN_TS
         and best_ask < adjusted_fair - threshold
         and z_score <= BUY_Z
         and buy_edge > threshold
@@ -290,16 +283,6 @@ def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]
         reason = (
             f"HP_LATE_FLATTEN z={z_score:.2f} std={residual_std:.2f} "
             f"sell_edge={sell_edge:.2f} avg_entry={avg_entry}"
-        )
-        log_decision(state, trading_state.timestamp, fair, adjusted_fair, best_bid, best_ask, z_score, sell_edge, position, -size, reason)
-        if size > 0:
-            orders.append(Order(HP, best_bid, -size))
-    elif invalidation:
-        desired = min(INVALIDATION_REDUCE_SIZE, position)
-        size = position_safe_sell_size(desired, position)
-        reason = (
-            f"HP_INVALIDATION_REDUCE underwater={underwater_ticks:.2f} "
-            f"z={z_score:.2f} std={residual_std:.2f} avg_entry={avg_entry}"
         )
         log_decision(state, trading_state.timestamp, fair, adjusted_fair, best_bid, best_ask, z_score, sell_edge, position, -size, reason)
         if size > 0:

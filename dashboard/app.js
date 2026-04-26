@@ -138,6 +138,7 @@ const dom = {
   analysisFillsTableBody: document.querySelector("#analysisFillsTable tbody"),
   analysisMissedTableBody: document.querySelector("#analysisMissedTable tbody"),
   analysisMissedCount: document.getElementById("analysisMissedCount"),
+  analysisTraderId: document.getElementById("analysisTraderId"),
   tradeCount: document.getElementById("tradeCount"),
   performanceMode: document.getElementById("performanceMode"),
   heroRangeTabs: document.getElementById("heroRangeTabs"),
@@ -2015,7 +2016,7 @@ function buildAnalysisProductOptions(points) {
 }
 
 function buildTraderIdOptions(result) {
-  const el = document.getElementById("analysisTraderId");
+  const el = dom.analysisTraderId;
   if (!el) return;
   const ids = new Set();
   for (const t of result.market_trades || []) {
@@ -2145,6 +2146,34 @@ function renderBookChart(result) {
     });
   }
 
+  if (analysisState.showMarketTrades) {
+    const trades = getFilteredMarketTrades(result).filter(t => indexByKey.has(parseFillKey(t)));
+    traces.push({
+      type: "scattergl",
+      mode: "markers",
+      name: "Market Trades",
+      x: trades.map(t => indexByKey.get(parseFillKey(t))),
+      y: trades.map(t => normalizePrice(product, analysisState.pointLookup.get(`${t.product}|${t.day}|${t.timestamp}`), t.price)),
+      customdata: trades.map((t) => {
+        const point = analysisState.pointLookup.get(`${t.product}|${t.day}|${t.timestamp}`);
+        const direction = classifyTradeDirection(t, point);
+        const label = analysisState.classifyTrades ? tradeDirectionLabel(direction) : "trade";
+        return `${label}<br>q${t.quantity} @ ${t.price}`;
+      }),
+      marker: {
+        size: trades.map(t => Math.max(7, Math.min(18, t.quantity + 4))),
+        color: trades.map((t) => {
+          const point = analysisState.pointLookup.get(`${t.product}|${t.day}|${t.timestamp}`);
+          return analysisState.classifyTrades ? tradeClassificationColor(classifyTradeDirection(t, point)) : "#f59e0b";
+        }),
+        symbol: "diamond",
+        line: { color: "#fafafa", width: 0.6 },
+        opacity: 0.86,
+      },
+      hovertemplate: "%{customdata}<extra></extra>",
+    });
+  }
+
   Plotly.newPlot(dom.analysisBookChart, traces, baseLayout({
     xaxis: { tickvals: axis.tickVals, ticktext: axis.tickText },
     yaxis: { title: mode === "fixed" ? "Edge vs Reference" : getPriceAxisTitle(product) },
@@ -2257,6 +2286,38 @@ function renderInventoryHeatmap(result) {
   const util = prods.map((pr, i) => (pos[i] / (lims[pr] || 50)) * 100);
   const cols = util.map(u => Math.abs(u) > 90 ? "#fb7185" : Math.abs(u) > 50 ? "#f59e0b" : "#34d399");
   Plotly.newPlot(dom.inventoryHeatmap, [{ type: "bar", x: prods, y: util, marker: { color: cols } }], baseLayout({ margin: { b: 80 }, yaxis: { title: "Limit %", range: [-110, 110] } }), PLOTLY_CONFIG);
+}
+
+function renderAnalysis(result = lastResult) {
+  const safeResult = result || {
+    points: [],
+    fills: [],
+    market_trades: [],
+    state_logs: [],
+    portfolio_points: [],
+    metrics: {},
+  };
+
+  analysisState.activeResult = safeResult;
+  buildPointLookup(safeResult.points || []);
+  buildTraderIdOptions(safeResult);
+
+  const events = buildTimelineEvents(safeResult);
+  analysisState.timelineEvents = events;
+  renderEventTimeline(events);
+
+  renderBookChart(safeResult);
+  renderPositionChart(safeResult);
+  renderTimestampInspector(safeResult);
+  renderExecutionQualityChart(safeResult);
+  renderInventoryHeatmap(safeResult);
+  renderIndicatorChart(safeResult);
+  renderAnalysisFillsTable(safeResult);
+  renderMissedOpportunitiesTable(safeResult);
+  renderSpreadBucketChart(safeResult);
+  renderPnlBySideChart(safeResult);
+
+  window.dispatchEvent(new Event("resize"));
 }
 
 function applyResult(result) {
@@ -2504,6 +2565,11 @@ function bindEvents() {
   dom.analysisNormalize.addEventListener("change", () => { analysisState.normalize = dom.analysisNormalize.value; renderAnalysis(lastResult); });
   dom.analysisTimelineSort.addEventListener("change", () => { analysisState.timelineSort = dom.analysisTimelineSort.value; renderAnalysis(lastResult); });
   dom.analysisBookView.addEventListener("change", () => { analysisState.bookView = dom.analysisBookView.value; renderAnalysis(lastResult); });
+  if (dom.sizeBucket) dom.sizeBucket.addEventListener("change", () => { analysisState.sizeBucket = dom.sizeBucket.value; renderAnalysis(lastResult); });
+  if (dom.analysisTraderId) dom.analysisTraderId.addEventListener("change", () => { analysisState.traderId = dom.analysisTraderId.value; renderAnalysis(lastResult); });
+  if (dom.showOwnFills) dom.showOwnFills.addEventListener("change", () => { analysisState.showOwnFills = dom.showOwnFills.checked; renderAnalysis(lastResult); });
+  if (dom.showMarketTrades) dom.showMarketTrades.addEventListener("change", () => { analysisState.showMarketTrades = dom.showMarketTrades.checked; renderAnalysis(lastResult); });
+  if (dom.classifyTrades) dom.classifyTrades.addEventListener("change", () => { analysisState.classifyTrades = dom.classifyTrades.checked; renderAnalysis(lastResult); });
   if (dom.performanceMode) dom.performanceMode.addEventListener("change", () => { performanceMode = dom.performanceMode.value; renderPortfolioChart(lastResult); renderProductCharts(lastResult.points || [], lastResult.fills || []); renderLogsPage(lastResult); renderAnalysis(lastResult); });
   if (dom.logProduct) dom.logProduct.addEventListener("change", () => renderLogChart(lastResult));
   if (dom.heroRangeTabs) {
