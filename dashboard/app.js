@@ -23,6 +23,7 @@ const dom = {
   matchingMode: document.getElementById("matchingMode"),
   emeraldLimit: document.getElementById("emeraldLimit"),
   tomatoLimit: document.getElementById("tomatoLimit"),
+  voucherLimit: document.getElementById("voucherLimit"),
   emeraldLimitLabel: document.querySelector('label[for="emeraldLimit"]'),
   tomatoLimitLabel: document.querySelector('label[for="tomatoLimit"]'),
   portfolioChart: document.getElementById("portfolioChart"),
@@ -89,9 +90,10 @@ let lastResult = {
 // ── multi-run comparison ─────────────────────────────────────────────────────
 const savedRuns = [];
 const RUN_PALETTE = ["#0891b2", "#7c3aed", "#d97706", "#16a34a", "#dc2626", "#db2777"];
+const MAX_OVERVIEW_PRODUCT_CHARTS = 6;
 
 // ── performance / downsampling ────────────────────────────────────────────────
-let performanceMode = "full";
+let performanceMode = "fast";
 
 // ── indicator overlay ─────────────────────────────────────────────────────────
 const overlayState = {
@@ -119,6 +121,8 @@ const analysisState = {
   classifyTrades: false,
   sizeBucket: "all",
   traderId: "ALL",
+  // lazy-render flag: analysis charts are heavy; render only when user views the tab
+  dirty: false,
 };
 
 const FIXED_VALUE_PRODUCTS = {
@@ -161,11 +165,15 @@ function baseLayout(extra = {}) {
 }
 
 // ── performance: downsample points, always keeping points that have fills ────
+// Adaptive: caps the post-sample count so Plotly doesn't choke on a large
+// product set (e.g. Round 3's 12 products × 30k ticks each).
 function samplePoints(points, fills, mode) {
   if (mode === "full" || points.length <= 500) {
     return points;
   }
-  const step = mode === "medium" ? 2 : 5;
+  // Target post-sample size, per render call
+  const targetCount = mode === "medium" ? 8000 : 3000;
+  const step = Math.max(1, Math.ceil(points.length / targetCount));
   const importantKeys = new Set(fills.map((f) => `${f.day}|${f.timestamp}`));
   return points.filter(
     (p, i) => i % step === 0 || i === points.length - 1 || importantKeys.has(parseKey(p))
@@ -283,7 +291,7 @@ function renderIndicatorChart(result) {
       }
     });
     traces.push({
-      type: "scatter",
+      type: "scattergl",
       mode: "lines",
       name: key,
       x: axis.x,
@@ -343,12 +351,8 @@ function renderDataFiles() {
 }
 
 function applyRoundThreeLabels() {
-  if (dom.emeraldLimitLabel) {
-    dom.emeraldLimitLabel.textContent = "HYDROGEL_PACK Limit";
-  }
-  if (dom.tomatoLimitLabel) {
-    dom.tomatoLimitLabel.textContent = "VELVETFRUIT_EXTRACT Limit";
-  }
+  // Labels are now set in HTML directly (compact "HP Limit" / "VFE Limit")
+  // to fit the sidebar width. Kept as a no-op so existing call sites work.
 }
 
 async function fetchText(path) {
@@ -486,10 +490,20 @@ function buildTimeAxis(rows) {
 function getSelectedLimits() {
   const hydrogelPack = Number.parseInt(dom.emeraldLimit.value, 10);
   const velvetfruitExtract = Number.parseInt(dom.tomatoLimit.value, 10);
+  const voucher = dom.voucherLimit
+    ? Number.parseInt(dom.voucherLimit.value, 10)
+    : NaN;
+
+  const hpLim = Number.isFinite(hydrogelPack) && hydrogelPack > 0 ? hydrogelPack : 200;
+  const vfeLim = Number.isFinite(velvetfruitExtract) && velvetfruitExtract > 0 ? velvetfruitExtract : 200;
+  const vevLim = Number.isFinite(voucher) && voucher > 0 ? voucher : 300;
 
   return {
-    HYDROGEL_PACK: Number.isFinite(hydrogelPack) && hydrogelPack > 0 ? hydrogelPack : 200,
-    VELVETFRUIT_EXTRACT: Number.isFinite(velvetfruitExtract) && velvetfruitExtract > 0 ? velvetfruitExtract : 200,
+    HYDROGEL_PACK: hpLim,
+    VELVETFRUIT_EXTRACT: vfeLim,
+    VEV_4000: vevLim, VEV_4500: vevLim, VEV_5000: vevLim, VEV_5100: vevLim,
+    VEV_5200: vevLim, VEV_5300: vevLim, VEV_5400: vevLim, VEV_5500: vevLim,
+    VEV_6000: vevLim, VEV_6500: vevLim,
   };
 }
 
@@ -845,13 +859,36 @@ function downloadCsv(filename, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
-function renderPortfolioChart(points) {
-  const tracker = new Map();
-  for (const point of points) {
-    tracker.set(parseKey(point), {
+function getPortfolioRows(resultOrPoints) {
+  if (Array.isArray(resultOrPoints)) {
+    const tracker = new Map();
+    for (const point of resultOrPoints) {
+      tracker.set(parseKey(point), {
+        day: point.day,
+        timestamp: point.timestamp,
+        value: point.portfolio_mtm_pnl,
+      });
+    }
+    return [...tracker.values()].sort(sortByDayThenTs);
+  }
+  const rows = resultOrPoints?.portfolio_points || [];
+  return rows
+    .map((point) => ({
       day: point.day,
       timestamp: point.timestamp,
       value: point.portfolio_mtm_pnl,
+    }))
+    .sort(sortByDayThenTs);
+}
+
+function renderPortfolioChart(resultOrPoints) {
+  const portfolioRows = getPortfolioRows(resultOrPoints);
+  const tracker = new Map();
+  for (const point of portfolioRows) {
+    tracker.set(parseKey(point), {
+      day: point.day,
+      timestamp: point.timestamp,
+      value: point.value,
     });
   }
 
@@ -861,7 +898,7 @@ function renderPortfolioChart(points) {
 
   const traces = [
     {
-      type: "scatter",
+      type: "scattergl",
       mode: "lines",
       name: "PnL",
       x: axis.x,
@@ -874,18 +911,10 @@ function renderPortfolioChart(points) {
 
   if (savedRuns.length > 0) {
     savedRuns.forEach((run, idx) => {
-      const runTracker = new Map();
-      for (const point of run.result.points) {
-        runTracker.set(parseKey(point), {
-          day: point.day,
-          timestamp: point.timestamp,
-          value: point.portfolio_mtm_pnl,
-        });
-      }
-      const runRows = stitchSeriesByDay([...runTracker.values()].sort(sortByDayThenTs), "value");
+      const runRows = stitchSeriesByDay(getPortfolioRows(run.result), "value");
       const runAxis = buildTimeAxis(runRows);
       traces.push({
-        type: "scatter",
+        type: "scattergl",
         mode: "lines",
         name: run.label,
         x: runAxis.x,
@@ -920,11 +949,28 @@ function renderPortfolioChart(points) {
 
 function renderProductCharts(points, fills) {
   dom.productCharts.innerHTML = "";
-  const products = [...new Set(points.map((p) => p.product))].sort();
+  // Skip products that didn't fill at all this run — Round 3 has 12 products
+  // and many (e.g. far-OTM vouchers) never trade. Rendering empty charts wastes
+  // GPU budget and clutters the view.
+  const productsWithFills = new Set(fills.map((f) => f.product));
+  const fillCounts = fills.reduce((counts, fill) => {
+    counts.set(fill.product, (counts.get(fill.product) || 0) + 1);
+    return counts;
+  }, new Map());
+  const allProducts = [...new Set(points.map((p) => p.product))];
+  const products = allProducts
+    .filter((p) => productsWithFills.has(p))
+    .sort((a, b) => (fillCounts.get(b) || 0) - (fillCounts.get(a) || 0) || a.localeCompare(b))
+    .slice(0, MAX_OVERVIEW_PRODUCT_CHARTS);
+  if (products.length === 0) return;   // nothing traded → nothing to chart
 
   for (const product of products) {
-    const productPoints = points.filter((p) => p.product === product).sort(sortByDayThenTs);
     const productFills = fills.filter((f) => f.product === product).sort(sortByDayThenTs);
+    const productPoints = samplePoints(
+      points.filter((p) => p.product === product).sort(sortByDayThenTs),
+      productFills,
+      performanceMode
+    );
     const stitchedProductPoints = stitchSeriesByDay(
       productPoints.map((point) => ({
         ...point,
@@ -1054,6 +1100,24 @@ function renderMetrics(metrics) {
   dom.metrics.annSharpe.textContent = fmtNumber(metrics.annualized_sharpe, 3);
   dom.metrics.sortino.textContent = fmtNumber(metrics.sortino, 3);
   dom.metrics.calmar.textContent = fmtNumber(metrics.calmar, 3);
+
+  // Mirror key metrics into the hero chips on the Overview page.
+  const setText = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
+  setText("heroPnl", fmtNumber(metrics.final_pnl));
+  const subtitle = document.getElementById("heroSubtitle");
+  if (subtitle) {
+    const pnl = metrics.final_pnl;
+    if (pnl !== undefined && pnl !== null) {
+      subtitle.textContent = pnl >= 0 ? "profit" : "loss";
+    }
+  }
+  setText("chipAnnSharpe", fmtNumber(metrics.annualized_sharpe, 3));
+  setText("chipMaxDd", fmtNumber(metrics.max_drawdown_abs));
+  setText("chipSortino", fmtNumber(metrics.sortino, 3));
+  setText("chipCalmar", fmtNumber(metrics.calmar, 3));
 }
 
 function renderFillsTable(fills) {
@@ -1075,6 +1139,8 @@ function renderFillsTable(fills) {
     dom.fillsTableBody.appendChild(row);
   }
   dom.tradeCount.textContent = `Trades: ${fills.length}`;
+  const chipFills = document.getElementById("chipFills");
+  if (chipFills) chipFills.textContent = fills.length.toLocaleString();
 }
 
 function buildAnalysisProductOptions(points) {
@@ -1299,7 +1365,7 @@ function renderBookChart(result) {
 
   const traces = [
     {
-      type: "scatter",
+      type: "scattergl",
       mode: "lines",
       name: "Best Bid",
       x: axis.x,
@@ -1309,7 +1375,7 @@ function renderBookChart(result) {
       hovertemplate: "%{customdata}<br>Bid=%{y}<extra></extra>",
     },
     {
-      type: "scatter",
+      type: "scattergl",
       mode: "lines",
       name: "Best Ask",
       x: axis.x,
@@ -1319,7 +1385,7 @@ function renderBookChart(result) {
       hovertemplate: "%{customdata}<br>Ask=%{y}<extra></extra>",
     },
     {
-      type: "scatter",
+      type: "scattergl",
       mode: "lines",
       name: mode === "fixed" ? "Reference" : "Mid",
       x: axis.x,
@@ -1335,7 +1401,7 @@ function renderBookChart(result) {
   if (analysisState.showOwnFills) {
     const ownFillRows = resultFills.filter((fill) => indexByKey.has(parseFillKey(fill)));
     traces.push({
-      type: "scatter",
+      type: "scattergl",
       mode: "markers",
       name: "Own Fills",
       x: ownFillRows.map((fill) => indexByKey.get(parseFillKey(fill))),
@@ -1357,7 +1423,7 @@ function renderBookChart(result) {
   if (analysisState.showMarketTrades) {
     const marketRows = resultMarketTrades.filter((trade) => indexByKey.has(`${trade.day}|${trade.timestamp}`));
     traces.push({
-      type: "scatter",
+      type: "scattergl",
       mode: "markers",
       name: analysisState.classifyTrades ? "Market Trades (Classified)" : "Market Trades",
       x: marketRows.map((trade) => indexByKey.get(`${trade.day}|${trade.timestamp}`)),
@@ -1421,13 +1487,17 @@ function renderPositionChart(result) {
     return;
   }
 
-  const points = getProductPoints(result.points, product);
+  const points = samplePoints(
+    getProductPoints(result.points, product),
+    getFilteredFills(result),
+    performanceMode
+  );
   analysisState.positionRows = points;
   const axis = buildTimeAxis(points);
 
   const traces = [
     {
-      type: "scatter",
+      type: "scattergl",
       mode: "lines",
       name: "Position",
       x: axis.x,
@@ -1438,7 +1508,7 @@ function renderPositionChart(result) {
       yaxis: "y1",
     },
     {
-      type: "scatter",
+      type: "scattergl",
       mode: "lines",
       name: "Product PnL",
       x: axis.x,
@@ -1650,15 +1720,44 @@ function renderAnalysis(result) {
 
 function applyResult(result) {
   lastResult = result;
+  analysisState.dirty = true;     // mark analysis-tab content stale until viewed
   renderMetrics(result.metrics || {});
-  renderPortfolioChart(result.points || []);
-  renderProductCharts(result.points || [], result.fills || []);
-  renderFillsTable(result.fills || []);
-  buildAnalysisProductOptions(result.points || []);
-  buildIndicatorCheckboxes(result);
-  renderAnalysis(result);
-  renderSavedRunsList();
-  renderSyntheticChart();
+  // Render Overview-tab content immediately, but split across animation frames
+  // so the browser can repaint between charts (avoids one giant blocking render).
+  const tasks = [
+    () => renderPortfolioChart(result),
+    () => renderProductCharts(result.points || [], result.fills || []),
+    () => renderFillsTable(result.fills || []),
+    () => buildAnalysisProductOptions(result.points || []),
+    () => buildIndicatorCheckboxes(result),
+    () => renderSavedRunsList(),
+    () => renderSyntheticChart(),
+  ];
+  let i = 0;
+  function step() {
+    if (i >= tasks.length) return;
+    try { tasks[i](); } catch (e) { console.error(e); }
+    i += 1;
+    if (i < tasks.length) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+  // Analysis tab is rendered on-demand via maybeRenderAnalysis() when user
+  // activates that tab (see tab click handler). If user is already viewing
+  // it, render now after the overview tasks finish.
+  if (isAnalysisTabVisible()) {
+    setTimeout(maybeRenderAnalysis, 80);
+  }
+}
+
+function maybeRenderAnalysis() {
+  if (!lastResult || !analysisState.dirty) return;
+  analysisState.dirty = false;
+  renderAnalysis(lastResult);
+}
+
+function isAnalysisTabVisible() {
+  const panel = document.querySelector('[data-tab-panel="analysis"]');
+  return !!panel && panel.classList.contains("on");
 }
 
 function renderSavedRunsList() {
@@ -1683,7 +1782,7 @@ function renderSavedRunsList() {
     li.querySelector(".saved-run-remove").addEventListener("click", () => {
       savedRuns.splice(idx, 1);
       renderSavedRunsList();
-      renderPortfolioChart(lastResult.points || []);
+      renderPortfolioChart(lastResult);
       renderSyntheticChart();
     });
     dom.savedRunsList.appendChild(li);
@@ -1702,7 +1801,7 @@ function pinCurrentRun() {
     result: JSON.parse(JSON.stringify(lastResult)),
   });
   renderSavedRunsList();
-  renderPortfolioChart(lastResult.points || []);
+  renderPortfolioChart(lastResult);
   renderSyntheticChart();
   setStatus(`Pinned run: ${label}`);
 }
@@ -1710,7 +1809,7 @@ function pinCurrentRun() {
 function clearPinnedRuns() {
   savedRuns.length = 0;
   renderSavedRunsList();
-  renderPortfolioChart(lastResult.points || []);
+  renderPortfolioChart(lastResult);
   renderSyntheticChart();
 }
 
@@ -1874,7 +1973,7 @@ function renderSyntheticChart() {
     dom.syntheticChart,
     [
       {
-        type: "scatter",
+        type: "scattergl",
         mode: "lines",
         name: formula,
         x: axis.x,
@@ -2815,7 +2914,7 @@ function bindEvents() {
   if (dom.performanceMode) {
     dom.performanceMode.addEventListener("change", () => {
       performanceMode = dom.performanceMode.value;
-      renderPortfolioChart(lastResult.points || []);
+      renderPortfolioChart(lastResult);
       renderProductCharts(lastResult.points || [], lastResult.fills || []);
       renderAnalysis(lastResult);
     });
@@ -2854,6 +2953,10 @@ function bindEvents() {
         panel.classList.toggle("on", isTarget);
       });
       window.dispatchEvent(new Event("resize"));
+      // Render Analysis lazily — only when user opens that tab.
+      if (target === "analysis") {
+        requestAnimationFrame(maybeRenderAnalysis);
+      }
     });
   });
 }

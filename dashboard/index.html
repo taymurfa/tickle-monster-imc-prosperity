@@ -323,6 +323,7 @@ body::before {
   padding-right: 28px;
 }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field-row.field-row-3 { grid-template-columns: 1fr 1fr 1fr; }
 
 /* segmented control */
 .segmented {
@@ -431,6 +432,7 @@ body::before {
 
 /* drop zone (file) */
 .drop {
+  position: relative;
   border: 1px dashed var(--line-2);
   border-radius: var(--r-md);
   padding: 14px;
@@ -1343,21 +1345,25 @@ table.tbl {
 
       <div class="field-row">
         <div class="field">
-          <label class="field-label" for="emeraldLimit">HYDROGEL_PACK Limit</label>
+          <label class="field-label" for="emeraldLimit">HP Limit</label>
           <input id="emeraldLimit" class="input" type="number" value="200" step="1" />
         </div>
         <div class="field">
-          <label class="field-label" for="tomatoLimit">VELVETFRUIT_EXTRACT Limit</label>
+          <label class="field-label" for="tomatoLimit">VFE Limit</label>
           <input id="tomatoLimit" class="input" type="number" value="200" step="1" />
         </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="voucherLimit">VEV_* Voucher Limit (each)</label>
+        <input id="voucherLimit" class="input" type="number" value="300" step="1" />
       </div>
 
       <div class="field">
         <label class="field-label" for="performanceMode">Chart quality</label>
         <select id="performanceMode" class="select">
-          <option value="full" selected>full</option>
+          <option value="full">full</option>
           <option value="medium">medium</option>
-          <option value="fast">fast</option>
+          <option value="fast" selected>fast</option>
         </select>
       </div>
 
@@ -1465,34 +1471,34 @@ table.tbl {
               <span id="heroPnl">—</span>
             </div>
             <div class="pnl-delta">
-              <span class="vs">run a backtest to populate metrics</span>
+              <span class="vs" id="heroSubtitle">run a backtest to populate metrics</span>
             </div>
           </div>
 
           <div class="chips">
             <div class="chip">
               <div class="k">Sharpe (ann.)</div>
-              <div class="v">—</div>
+              <div class="v" id="chipAnnSharpe">—</div>
               <div class="sub">final run</div>
             </div>
             <div class="chip">
               <div class="k">Max DD</div>
-              <div class="v">—</div>
+              <div class="v" id="chipMaxDd">—</div>
               <div class="sub">peak-to-trough</div>
             </div>
             <div class="chip">
               <div class="k">Sortino</div>
-              <div class="v">—</div>
+              <div class="v" id="chipSortino">—</div>
               <div class="sub">downside</div>
             </div>
             <div class="chip">
               <div class="k">Calmar</div>
-              <div class="v">—</div>
+              <div class="v" id="chipCalmar">—</div>
               <div class="sub">return / DD</div>
             </div>
             <div class="chip">
               <div class="k">Fills</div>
-              <div class="v">—</div>
+              <div class="v" id="chipFills">—</div>
               <div class="sub">own + market</div>
             </div>
             <div class="chip">
@@ -1924,7 +1930,12 @@ table.tbl {
     const b = e.target.closest('button[data-tab]');
     if (b) setTab(b.dataset.tab);
   });
-  railBtns.forEach(b => b.addEventListener('click', () => setTab(b.dataset.rail)));
+  railBtns.forEach(b => b.addEventListener('click', () => {
+    // Route rail clicks through the topbar tab so app.js's tab listener fires too
+    // (it owns the lazy-render trigger for the Analysis tab).
+    const tabBtn = document.querySelector(`#tabsBar button[data-tab="${b.dataset.rail}"]`);
+    if (tabBtn) tabBtn.click(); else setTab(b.dataset.rail);
+  }));
 })();
 
 // ---- sidebar collapse ----

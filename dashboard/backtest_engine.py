@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 DEFAULT_LIMIT = 50
+PRODUCT_POINT_STRIDE = 10
+MAX_STATE_LOG_CHARS = 20_000
 LIMITS = {
     "HYDROGEL_PACK": 200,
     "VELVETFRUIT_EXTRACT": 200,
@@ -525,6 +527,14 @@ def _json_safe_metrics(metrics: dict[str, float | None]) -> dict[str, float | No
     return safe
 
 
+def _state_log_payload(trader_data: str) -> str:
+    if not isinstance(trader_data, str):
+        return ""
+    if len(trader_data) > MAX_STATE_LOG_CHARS:
+        return ""
+    return trader_data
+
+
 def _parse_limits_override(limits_override_json: str) -> dict[str, int]:
     if not limits_override_json:
         return {}
@@ -607,6 +617,7 @@ async def run_dashboard_backtest(
     datasets = _build_datasets(file_map)
 
     all_points: list[dict[str, Any]] = []
+    portfolio_points: list[dict[str, Any]] = []
     all_fills: list[dict[str, Any]] = []
     all_market_trades: list[dict[str, Any]] = []
     state_logs: list[dict[str, Any]] = []
@@ -654,16 +665,20 @@ async def run_dashboard_backtest(
             if not isinstance(orders, dict):
                 raise ValueError("Trader orders must be dict[Symbol, list[Order]]")
             state.traderData = trader_data if isinstance(trader_data, str) else ""
-            state_logs.append(
-                {
-                    "day": day_num,
-                    "timestamp": ts,
-                    "trader_data": state.traderData,
-                }
-            )
+            # Sample state logs: keep every 50th tick to bound JSON payload size.
+            # Indicator overlays read these — sampling preserves shape across 600 logs/day.
+            if (completed_ticks % 50) == 0:
+                state_logs.append(
+                    {
+                        "day": day_num,
+                        "timestamp": ts,
+                        "trader_data": _state_log_payload(state.traderData),
+                    }
+                )
 
             _enforce_limits(state, products, orders, limits_override)
 
+            tick_filled_products: set[str] = set()
             for product in products:
                 raw_market_trades = trades_by_ts.get(ts, {}).get(product, [])
                 for t in raw_market_trades:
@@ -704,6 +719,8 @@ async def run_dashboard_backtest(
                             matching_mode=matching_mode,
                             limits_override=limits_override,
                         )
+                        if fills:
+                            tick_filled_products.add(product)
                         all_fills.extend(fills)
                     elif order.quantity < 0:
                         fills, fill_seq = _match_sell_order(
@@ -717,16 +734,19 @@ async def run_dashboard_backtest(
                             matching_mode=matching_mode,
                             limits_override=limits_override,
                         )
+                        if fills:
+                            tick_filled_products.add(product)
                         all_fills.extend(fills)
 
             portfolio_pnl = 0.0
+            tick_points: list[dict[str, Any]] = []
             for product in products:
                 row = prices_at_ts[product]
                 pos = state.position.get(product, 0)
                 mtm = profit_loss[product] + pos * row.mid_price
                 portfolio_pnl += mtm
 
-                all_points.append(
+                tick_points.append(
                     {
                         "day": day_num,
                         "timestamp": ts,
@@ -746,8 +766,18 @@ async def run_dashboard_backtest(
                 )
 
             day_equity.append(portfolio_pnl)
-            for p in range(len(all_points) - len(products), len(all_points)):
-                all_points[p]["portfolio_mtm_pnl"] = portfolio_pnl
+            portfolio_points.append(
+                {
+                    "day": day_num,
+                    "timestamp": ts,
+                    "portfolio_mtm_pnl": portfolio_pnl,
+                }
+            )
+            keep_product_snapshot = (completed_ticks % PRODUCT_POINT_STRIDE) == 0
+            for point in tick_points:
+                point["portfolio_mtm_pnl"] = portfolio_pnl
+                if keep_product_snapshot or point["product"] in tick_filled_products:
+                    all_points.append(point)
 
             # ── progress + yield to the JS event loop ─────────────────────
             completed_ticks += 1
@@ -772,6 +802,7 @@ async def run_dashboard_backtest(
 
     metrics = _json_safe_metrics(_compute_metrics(day_equity_paths))
     payload = {
+        "portfolio_points": portfolio_points,
         "points": all_points,
         "fills": all_fills,
         "market_trades": all_market_trades,
