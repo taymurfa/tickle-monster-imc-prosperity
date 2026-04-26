@@ -676,7 +676,7 @@ function numberField(row, ...names) {
   for (const name of names) {
     const raw = row?.[name];
     if (raw === undefined || raw === null || raw === "") continue;
-    const value = Number(raw);
+    const value = Number(String(raw).replace(/,/g, ""));
     if (Number.isFinite(value)) return value;
   }
   return null;
@@ -784,8 +784,8 @@ function normalizeTradeRows(rows) {
     const day = numberField(row, "day") ?? 0;
     const buyer = stringField(row, "buyer");
     const seller = stringField(row, "seller");
-    const isBuy = buyer.toUpperCase() === "SUBMISSION";
-    const isSell = seller.toUpperCase() === "SUBMISSION";
+    const isBuy = buyer.toUpperCase().includes("SUBMISSION");
+    const isSell = seller.toUpperCase().includes("SUBMISSION");
 
     if (isBuy || isSell) {
       const side = isBuy ? "BUY" : "SELL";
@@ -1695,10 +1695,12 @@ function renderMetrics(metrics) {
   if (heroPnlEl) {
     const pnlValueParent = heroPnlEl.closest(".pnl-value");
     if (pnlValueParent) {
+      const hasPnl = Number.isFinite(metrics.final_pnl);
+      pnlValueParent.classList.toggle("pnl-empty", !hasPnl);
       pnlValueParent.classList.remove("pnl-profit", "pnl-loss");
       void pnlValueParent.offsetWidth;
-      if (metrics.final_pnl > 0) pnlValueParent.classList.add("pnl-profit");
-      else if (metrics.final_pnl < 0) pnlValueParent.classList.add("pnl-loss");
+      if (hasPnl && metrics.final_pnl > 0) pnlValueParent.classList.add("pnl-profit");
+      else if (hasPnl && metrics.final_pnl < 0) pnlValueParent.classList.add("pnl-loss");
     }
   }
 
@@ -2144,6 +2146,29 @@ async function runSimulation() {
   backtestWorker.postMessage({ type: "run", strategy: strategyCode, fileMap, matchingMode: dom.matchingMode.value, limitsOverride: getSelectedLimits(), engine });
 }
 
+async function handleOosLogFile(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const result = parseOosUpload(text, file.name);
+    const hasData =
+      (result.points || []).length ||
+      (result.portfolio_points || []).length ||
+      (result.fills || []).length ||
+      (result.market_trades || []).length;
+    if (!hasData) {
+      throw new Error("No recognizable activity rows, trade history, or dashboard result data found.");
+    }
+    if (dom.logMeta) dom.logMeta.textContent = file.name;
+    applyResult(result);
+    setStatus(`Loaded OOS log: ${file.name}`);
+  } catch (err) {
+    console.error(err);
+    if (dom.logMeta) dom.logMeta.textContent = "Load failed";
+    setStatus(`OOS upload failed: ${err.message || err}`, true);
+  }
+}
+
 function saveSettings() {
   localStorage.setItem('prosperitySettings', JSON.stringify({
     roundSelect: dom.roundSelect?.value,
@@ -2186,6 +2211,24 @@ function bindEvents() {
       reader.readAsText(f);
     }
   });
+  if (dom.logInput) {
+    dom.logInput.addEventListener("change", (e) => handleOosLogFile(e.target.files?.[0]));
+  }
+  if (dom.logDropZone) {
+    ["dragenter", "dragover"].forEach((type) => {
+      dom.logDropZone.addEventListener(type, (e) => {
+        e.preventDefault();
+        dom.logDropZone.classList.add("dragover");
+      });
+    });
+    ["dragleave", "drop"].forEach((type) => {
+      dom.logDropZone.addEventListener(type, (e) => {
+        e.preventDefault();
+        dom.logDropZone.classList.remove("dragover");
+      });
+    });
+    dom.logDropZone.addEventListener("drop", (e) => handleOosLogFile(e.dataTransfer?.files?.[0]));
+  }
   dom.runButton.addEventListener("click", runSimulation);
   dom.analysisProduct.addEventListener("change", () => { analysisState.product = dom.analysisProduct.value; buildTraderIdOptions(lastResult); renderAnalysis(lastResult); });
   dom.analysisSide.addEventListener("change", () => { analysisState.side = dom.analysisSide.value; renderAnalysis(lastResult); });
