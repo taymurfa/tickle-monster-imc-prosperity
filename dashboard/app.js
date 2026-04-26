@@ -331,7 +331,16 @@ function resizePlotsInWidget(widget) {
   const plots = widget.querySelectorAll(".js-plotly-plot");
   plots.forEach((plot) => {
     try {
-      Plotly.relayout(plot, { autosize: true });
+      const rect = plot.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        Plotly.relayout(plot, {
+          autosize: true,
+          width: Math.floor(rect.width),
+          height: Math.floor(rect.height),
+        });
+      } else {
+        Plotly.relayout(plot, { autosize: true });
+      }
       Plotly.Plots.resize(plot);
     } catch {}
   });
@@ -690,9 +699,22 @@ function parseDelimitedTable(text) {
   });
 }
 
+function rowField(row, ...names) {
+  if (!row || typeof row !== "object") return undefined;
+  for (const name of names) {
+    if (Object.hasOwn(row, name)) return row[name];
+  }
+  const lookup = new Map(Object.keys(row).map((key) => [key.toLowerCase().trim(), key]));
+  for (const name of names) {
+    const key = lookup.get(String(name).toLowerCase().trim());
+    if (key !== undefined) return row[key];
+  }
+  return undefined;
+}
+
 function numberField(row, ...names) {
   for (const name of names) {
-    const raw = row?.[name];
+    const raw = rowField(row, name);
     if (raw === undefined || raw === null || raw === "") continue;
     const value = Number(String(raw).replace(/,/g, ""));
     if (Number.isFinite(value)) return value;
@@ -702,21 +724,31 @@ function numberField(row, ...names) {
 
 function stringField(row, ...names) {
   for (const name of names) {
-    const raw = row?.[name];
+    const raw = rowField(row, name);
     if (raw !== undefined && raw !== null && String(raw).trim() !== "") return String(raw).trim();
   }
   return "";
 }
 
-function findSection(text, label, stopLabels) {
-  const start = text.toLowerCase().indexOf(label.toLowerCase());
+function findSection(text, labels, stopLabels) {
+  const labelList = Array.isArray(labels) ? labels : [labels];
+  const lower = text.toLowerCase();
+  let start = -1;
+  let matchedLabel = "";
+  for (const label of labelList) {
+    const idx = lower.indexOf(label.toLowerCase());
+    if (idx >= 0 && (start < 0 || idx < start)) {
+      start = idx;
+      matchedLabel = label;
+    }
+  }
   if (start < 0) return "";
-  let bodyStart = text.indexOf("\n", start);
-  if (bodyStart < 0) return "";
-  bodyStart += 1;
+  let bodyStart = text.indexOf("\n", start + matchedLabel.length);
+  if (bodyStart < 0) bodyStart = start + matchedLabel.length;
+  else bodyStart += 1;
   let end = text.length;
   for (const stop of stopLabels) {
-    const idx = text.toLowerCase().indexOf(stop.toLowerCase(), bodyStart);
+    const idx = lower.indexOf(stop.toLowerCase(), bodyStart);
     if (idx >= 0) end = Math.min(end, idx);
   }
   return text.slice(bodyStart, end).trim();
@@ -875,6 +907,22 @@ function normalizeUploadedResult(raw) {
   };
 }
 
+function coerceRows(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  const parsed = parseMaybeJson(value);
+  if (Array.isArray(parsed)) return parsed;
+  return parseDelimitedTable(value);
+}
+
+function firstPresent(obj, ...names) {
+  for (const name of names) {
+    const value = rowField(obj, name);
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return undefined;
+}
+
 function parseOosUpload(text, fileName = "") {
   const parsed = parseMaybeJson(text);
   if (parsed && !Array.isArray(parsed) && (parsed.points || parsed.portfolio_points || parsed.fills || parsed.market_trades)) {
@@ -888,12 +936,42 @@ function parseOosUpload(text, fileName = "") {
     if (Array.isArray(parsed)) {
       tradeRows = parsed;
     } else {
-      activityRows = parsed.activities || parsed.activities_log || parsed.activity_log || parsed.points || [];
-      tradeRows = parsed.trade_history || parsed.trades || parsed.fills || parsed.market_trades || [];
+      activityRows = coerceRows(firstPresent(
+        parsed,
+        "activities",
+        "activities_log",
+        "activity_log",
+        "activitiesLog",
+        "activityLog",
+        "points"
+      ));
+      tradeRows = coerceRows(firstPresent(
+        parsed,
+        "trade_history",
+        "tradeHistory",
+        "trades",
+        "fills",
+        "market_trades",
+        "marketTrades"
+      ));
+      if (!activityRows.length && !tradeRows.length) {
+        const nestedLog = firstPresent(parsed, "log", "logs", "raw_log", "rawLog", "content", "text");
+        if (typeof nestedLog === "string" && nestedLog !== text) {
+          return parseOosUpload(nestedLog, fileName);
+        }
+      }
     }
   } else {
-    const activitiesText = findSection(text, "Activities log:", ["Trade History:", "Sandbox logs:", "Lambda logs:"]);
-    const tradeText = findSection(text, "Trade History:", ["Activities log:", "Sandbox logs:", "Lambda logs:"]);
+    const activitiesText = findSection(
+      text,
+      ["Activities log:", "Activities Log:", "Activity log:", "Activity Log:"],
+      ["Trade History:", "Trade history:", "Sandbox logs:", "Sandbox Logs:", "Lambda logs:", "Lambda Logs:"]
+    );
+    const tradeText = findSection(
+      text,
+      ["Trade History:", "Trade history:"],
+      ["Activities log:", "Activities Log:", "Activity log:", "Activity Log:", "Sandbox logs:", "Sandbox Logs:", "Lambda logs:", "Lambda Logs:"]
+    );
     if (activitiesText) activityRows = parseDelimitedTable(activitiesText);
     if (tradeText) {
       const tradeJson = parseMaybeJson(tradeText);
@@ -2166,6 +2244,8 @@ async function runSimulation() {
 
 async function handleOosLogFile(file) {
   if (!file) return;
+  if (dom.logMeta) dom.logMeta.textContent = `Loading ${file.name}...`;
+  setStatus(`Reading OOS log: ${file.name}`);
   try {
     const text = await file.text();
     const result = parseOosUpload(text, file.name);
@@ -2179,7 +2259,7 @@ async function handleOosLogFile(file) {
     }
     if (dom.logMeta) dom.logMeta.textContent = file.name;
     applyResult(result);
-    setStatus(`Loaded OOS log: ${file.name}`);
+    setStatus(`Loaded OOS log: ${file.name} (${(result.points || []).length.toLocaleString()} rows, ${(result.fills || []).length.toLocaleString()} fills).`);
   } catch (err) {
     console.error(err);
     if (dom.logMeta) dom.logMeta.textContent = "Load failed";
@@ -2233,22 +2313,26 @@ function bindEvents() {
     }
   });
   if (dom.logInput) {
+    dom.logInput.addEventListener("click", () => { dom.logInput.value = ""; });
     dom.logInput.addEventListener("change", (e) => handleOosLogFile(e.target.files?.[0]));
   }
-  if (dom.logDropZone) {
+  const logDropTargets = [dom.logDropZone, dom.logInput].filter(Boolean);
+  for (const target of logDropTargets) {
     ["dragenter", "dragover"].forEach((type) => {
-      dom.logDropZone.addEventListener(type, (e) => {
+      target.addEventListener(type, (e) => {
         e.preventDefault();
-        dom.logDropZone.classList.add("dragover");
+        e.stopPropagation();
+        dom.logDropZone?.classList.add("dragover");
       });
     });
     ["dragleave", "drop"].forEach((type) => {
-      dom.logDropZone.addEventListener(type, (e) => {
+      target.addEventListener(type, (e) => {
         e.preventDefault();
-        dom.logDropZone.classList.remove("dragover");
+        e.stopPropagation();
+        dom.logDropZone?.classList.remove("dragover");
       });
     });
-    dom.logDropZone.addEventListener("drop", (e) => handleOosLogFile(e.dataTransfer?.files?.[0]));
+    target.addEventListener("drop", (e) => handleOosLogFile(e.dataTransfer?.files?.[0]));
   }
   dom.runButton.addEventListener("click", runSimulation);
   dom.analysisProduct.addEventListener("change", () => { analysisState.product = dom.analysisProduct.value; buildTraderIdOptions(lastResult); renderAnalysis(lastResult); });

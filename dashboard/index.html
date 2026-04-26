@@ -887,8 +887,26 @@ body.chart-fullscreen-active .collapse-toggle {
 .chart-widget.is-fullscreen .chart-fullscreen-btn {
   background: var(--accent); border-color: transparent; color: oklch(0.12 0.015 260);
 }
-  gap: 1px;
-  background: var(--line-1);
+.chart-widget.is-fullscreen.product-chart-item {
+  display: flex;
+  flex-direction: column;
+}
+.chart-widget.is-fullscreen.product-chart-item .product-chart-item-head,
+.chart-widget.is-fullscreen.product-chart-item .product-summary {
+  flex: 0 0 auto;
+}
+.chart-widget.is-fullscreen.product-chart-item .product-summary {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.chart-widget.is-fullscreen.product-chart-item .product-stat {
+  padding: 8px 12px;
+}
+.chart-widget.is-fullscreen.product-chart-item .product-chart {
+  flex: 1 1 0;
+  height: 0 !important;
+  min-height: 360px !important;
+  padding: 0;
+  position: relative;
 }
 .product {
   background: var(--bg-1);
