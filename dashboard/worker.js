@@ -38,16 +38,13 @@ self.onmessage = async (e) => {
       // 3. Execute the backtest call
       // Note: run_dashboard_backtest is already defined in the global scope from step 1
       const resultJson = await pyodide.runPythonAsync(`
-import asyncio
-async def _execute_simulation():
-    return await run_dashboard_backtest(
-        strategy_code, 
-        file_map_json, 
-        matching_mode, 
-        limits_override_json,
-        progress_callback=dashboard_progress_callback
-    )
-asyncio.run(_execute_simulation())
+await run_dashboard_backtest(
+    strategy_code, 
+    file_map_json, 
+    matching_mode, 
+    limits_override_json,
+    progress_callback=dashboard_progress_callback
+)
       `);
 
       self.postMessage({ type: "result", result: resultJson });
