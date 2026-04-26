@@ -342,6 +342,13 @@ function tradeClassificationColor(direction) {
   return "#cbd5e1";
 }
 
+function tradeDirectionLabel(direction) {
+  if (direction === "aggressiveBuy") return "buy-aggressor trade";
+  if (direction === "aggressiveSell") return "sell-aggressor trade";
+  if (direction === "passive") return "inside-spread trade";
+  return "unknown trade";
+}
+
 // ── size bucket filter ────────────────────────────────────────────────────────
 function sizeBucketMatch(qty, bucket) {
   if (bucket === "all") return true;
@@ -1690,7 +1697,7 @@ function renderBookChart(result) {
       },
       customdata: marketRows.map((trade) => {
         const point = analysisState.pointLookup.get(`${trade.product}|${trade.day}|${trade.timestamp}`);
-        const direction = analysisState.classifyTrades ? classifyTradeDirection(trade, point) : "trade";
+        const direction = tradeDirectionLabel(classifyTradeDirection(trade, point));
         const traderText = [trade.buyer, trade.seller].filter(Boolean).join(" / ");
         return `${direction} q${trade.quantity} @ ${trade.price}${traderText ? ` • ${traderText}` : ""}`;
       }),
