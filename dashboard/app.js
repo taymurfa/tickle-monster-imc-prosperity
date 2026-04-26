@@ -8,7 +8,6 @@ const DATA_FILES = [
 ];
 
 const DATA_BASE_PATH = "ROUND_3/ROUND3";
-const DEFAULT_STRATEGY_PATH = "ROUND_3/R3_V2.py";
 
 const dom = {
   dataFileList: document.getElementById("dataFileList"),
@@ -510,12 +509,6 @@ async function fetchText(path) {
     throw new Error(`Could not load ${path}: HTTP ${response.status}`);
   }
   return response.text();
-}
-
-async function loadDefaultStrategy() {
-  strategyCode = await fetchText(DEFAULT_STRATEGY_PATH);
-  strategyName = DEFAULT_STRATEGY_PATH.split("/").pop().replace(/\.py$/i, "");
-  dom.strategyMeta.textContent = `Using bundled strategy: ${DEFAULT_STRATEGY_PATH}`;
 }
 
 function setStatus(message, isError = false) {
@@ -2972,6 +2965,11 @@ function showRunProgress(visible) {
 }
 
 async function runSimulation() {
+  if (!strategyCode.trim()) {
+    setStatus("Upload a Python strategy file before running.", true);
+    return;
+  }
+
   try {
     dom.runButton.disabled = true;
     setStatus("Running simulation...");
@@ -3460,11 +3458,7 @@ async function main() {
     setStatus(error?.message || String(error), true);
     return;
   }
-  try {
-    await loadDefaultStrategy();
-  } catch {
-    dom.strategyMeta.textContent = "No bundled strategy — drop a .py file to begin.";
-  }
+  dom.strategyMeta.textContent = "Drop a .py strategy file to begin.";
   setStatus("Ready.");
 }
 
