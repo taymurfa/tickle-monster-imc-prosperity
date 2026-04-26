@@ -22,6 +22,7 @@ ROUND_MAP = {
     "1": {"path": "dashboard/ROUND_1/ROUND1", "days": (-2, -1, 0), "prefix": "round_1"},
     "2": {"path": "dashboard/ROUND_2/ROUND2", "days": (-1, 0, 1), "prefix": "round_2"},
     "3": {"path": "dashboard/ROUND_3/ROUND3", "days": (0, 1, 2), "prefix": "round_3"},
+    "4": {"path": "dashboard/ROUND_4", "days": (1, 2, 3), "prefix": "round_4"},
 }
 
 def resolve_strategy(arg: str) -> tuple[str, str]:
@@ -33,6 +34,7 @@ def resolve_strategy(arg: str) -> tuple[str, str]:
             os.path.join(DASHBOARD_DIR, "ROUND_3", "hp_iterations"),
             os.path.join(REPO_ROOT, "round3", "vfe_iterations"),
             os.path.join(DASHBOARD_DIR, "ROUND_3", "vfe_iterations"),
+            os.path.join(DASHBOARD_DIR, "ROUND_4"),
             os.path.join(REPO_ROOT, "round1"),
             os.path.join(REPO_ROOT, "round2"),
         ]

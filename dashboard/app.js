@@ -59,6 +59,27 @@ const ROUND_CONFIGS = {
       VEV_4000: 4000, VEV_4500: 4500, VEV_5000: 5000, VEV_5100: 5100, VEV_5200: 5200,
       VEV_5300: 5300, VEV_5400: 5400, VEV_5500: 5500, VEV_6000: 6000, VEV_6500: 6500,
     },
+  },
+  "4": {
+    basePath: "ROUND_4",
+    files: [
+      "prices_round_4_day_1.csv",
+      "prices_round_4_day_2.csv",
+      "prices_round_4_day_3.csv",
+      "trades_round_4_day_1.csv",
+      "trades_round_4_day_2.csv",
+      "trades_round_4_day_3.csv",
+    ],
+    labels: { emerald: "Hydrogel", tomato: "Velvetfruit" },
+    overviewProducts: [
+      "HYDROGEL_PACK",
+      "VELVETFRUIT_EXTRACT",
+      "VEV_4000", "VEV_4500", "VEV_5000", "VEV_5100", "VEV_5200", "VEV_5300", "VEV_5400", "VEV_5500", "VEV_6000", "VEV_6500"
+    ],
+    voucherStrikes: {
+      VEV_4000: 4000, VEV_4500: 4500, VEV_5000: 5000, VEV_5100: 5100, VEV_5200: 5200,
+      VEV_5300: 5300, VEV_5400: 5400, VEV_5500: 5500, VEV_6000: 6000, VEV_6500: 6500,
+    },
   }
 };
 
@@ -114,6 +135,8 @@ const dom = {
   analysisMissedCount: document.getElementById("analysisMissedCount"),
   tradeCount: document.getElementById("tradeCount"),
   performanceMode: document.getElementById("performanceMode"),
+  heroRangeTabs: document.getElementById("heroRangeTabs"),
+  heroChartMeta: document.getElementById("heroChartMeta"),
   runLabel: document.getElementById("runLabel"),
   pinRunButton: document.getElementById("pinRunButton"),
   savedRunsList: document.getElementById("savedRunsList"),
@@ -1727,7 +1750,7 @@ function bindEvents() {
     if (e.key === "Escape") closeFullscreenWidget();
     if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
     if (e.key.toLowerCase() === 'r') { e.preventDefault(); if (!dom.runButton.disabled) runSimulation(); }
-    else if (['0', '1', '2', '3'].includes(e.key)) { dom.roundSelect.value = e.key; updateRound(e.key); saveSettings(); }
+    else if (['0', '1', '2', '3', '4'].includes(e.key)) { dom.roundSelect.value = e.key; updateRound(e.key); saveSettings(); }
   });
   dom.strategyInput.addEventListener("change", (e) => {
     const f = e.target.files?.[0];
