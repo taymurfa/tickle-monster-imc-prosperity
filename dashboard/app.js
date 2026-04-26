@@ -93,8 +93,25 @@ let lastResult = {
 
 // ── multi-run comparison ─────────────────────────────────────────────────────
 const savedRuns = [];
-const RUN_PALETTE = ["#0891b2", "#7c3aed", "#d97706", "#16a34a", "#dc2626", "#db2777"];
-const MAX_OVERVIEW_PRODUCT_CHARTS = 6;
+const RUN_PALETTE = ["#38bdf8", "#34d399", "#f59e0b", "#f472b6", "#fb7185", "#a78bfa"];
+const VOUCHER_STRIKES = {
+  VEV_4000: 4000,
+  VEV_4500: 4500,
+  VEV_5000: 5000,
+  VEV_5100: 5100,
+  VEV_5200: 5200,
+  VEV_5300: 5300,
+  VEV_5400: 5400,
+  VEV_5500: 5500,
+  VEV_6000: 6000,
+  VEV_6500: 6500,
+};
+const VOUCHER_PRODUCTS = Object.keys(VOUCHER_STRIKES);
+const ROUND3_OVERVIEW_PRODUCTS = [
+  "HYDROGEL_PACK",
+  "VELVETFRUIT_EXTRACT",
+  ...VOUCHER_PRODUCTS,
+];
 
 // ── performance / downsampling ────────────────────────────────────────────────
 let performanceMode = "fast";
@@ -104,7 +121,7 @@ const overlayState = {
   enabledKeys: new Set(),
   availableKeys: [],
 };
-const INDICATOR_COLORS = ["#0891b2", "#7c3aed", "#b45309", "#16a34a", "#dc2626", "#6b7280", "#0f766e", "#d97706"];
+const INDICATOR_COLORS = ["#38bdf8", "#34d399", "#f59e0b", "#f472b6", "#fb7185", "#a78bfa", "#2dd4bf", "#f97316"];
 
 const analysisState = {
   product: "ALL",
@@ -135,16 +152,17 @@ const FIXED_VALUE_PRODUCTS = {
 
 // ── centralised Plotly dark-theme layout defaults ────────────────────────────
 const CHART_BG   = "rgba(0,0,0,0)";
-const PLOT_BG    = "#1A1A22";
-const GRID_COLOR = "rgba(255,255,255,0.05)";
-const FONT_COLOR = "#8E8E9E";
-const SPIKE_COLOR = "#00C805";
+const PLOT_BG    = "#171A20";
+const GRID_COLOR = "rgba(226,232,240,0.13)";
+const FONT_COLOR = "#D6DEE8";
+const MUTED_FONT_COLOR = "#9AA8B8";
+const SPIKE_COLOR = "#38BDF8";
 
 function baseLayout(extra = {}) {
-  return {
+  const defaults = {
     paper_bgcolor: CHART_BG,
     plot_bgcolor:  PLOT_BG,
-    font: { color: FONT_COLOR, family: "IBM Plex Mono, monospace", size: 11 },
+    font: { color: FONT_COLOR, family: "JetBrains Mono, monospace", size: 11 },
     margin: { l: 56, r: 20, t: 8, b: 36 },
     hovermode: "x unified",
     hoverdistance: -1,
@@ -155,17 +173,144 @@ function baseLayout(extra = {}) {
       gridcolor: GRID_COLOR,
       zeroline: false,
       color: FONT_COLOR,
-      tickfont: { size: 10 },
+      linecolor: "rgba(226,232,240,0.22)",
+      tickfont: { size: 10, color: MUTED_FONT_COLOR },
+      titlefont: { color: FONT_COLOR },
     },
     yaxis: {
       showgrid: true,
       gridcolor: GRID_COLOR,
       zeroline: false,
       color: FONT_COLOR,
-      tickfont: { size: 10 },
+      linecolor: "rgba(226,232,240,0.22)",
+      tickfont: { size: 10, color: MUTED_FONT_COLOR },
+      titlefont: { color: FONT_COLOR },
     },
-    ...extra,
   };
+  const layout = { ...defaults, ...extra };
+  layout.font = { ...defaults.font, ...(extra.font || {}) };
+  layout.legend = { ...defaults.legend, ...(extra.legend || {}) };
+  layout.xaxis = { ...defaults.xaxis, ...(extra.xaxis || {}) };
+  layout.yaxis = { ...defaults.yaxis, ...(extra.yaxis || {}) };
+  if (extra.yaxis2) {
+    layout.yaxis2 = {
+      ...defaults.yaxis,
+      showgrid: false,
+      ...(extra.yaxis2 || {}),
+    };
+  }
+  return layout;
+}
+
+const STATIC_GRAPH_WIDGETS = [
+  { chartId: "portfolioChart", widgetSelector: ".hero-right", headerSelector: ".chart-head", title: "Equity curve" },
+  { chartId: "analysisBookChart", widgetSelector: ".card", headerSelector: ".card-head", title: "Top of book + fills" },
+  { chartId: "analysisPositionChart", widgetSelector: ".card", headerSelector: ".card-head", title: "Position + product P&L" },
+  { chartId: "indicatorChart", widgetSelector: ".card", headerSelector: ".card-head", title: "Indicator overlays" },
+  { chartId: "spreadBucketChart", widgetSelector: ".card", headerSelector: ".card-head", title: "P&L by spread bucket" },
+  { chartId: "pnlBySideChart", widgetSelector: ".card", headerSelector: ".card-head", title: "Cumulative P&L by side" },
+  { chartId: "syntheticChart", widgetSelector: ".card", headerSelector: ".card-head", title: "Synthetic / spread formula" },
+];
+
+let fullscreenWidget = null;
+
+function fullscreenIcon() {
+  return `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M21 16v5h-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `;
+}
+
+function ensureFullscreenBackdrop() {
+  let backdrop = document.querySelector(".chart-fullscreen-backdrop");
+  if (!backdrop) {
+    backdrop = document.createElement("div");
+    backdrop.className = "chart-fullscreen-backdrop";
+    backdrop.addEventListener("click", closeFullscreenWidget);
+  }
+  const host = document.querySelector(".app") || document.body;
+  if (backdrop.parentElement !== host) {
+    host.appendChild(backdrop);
+  }
+  return backdrop;
+}
+
+function resizePlotsInWidget(widget) {
+  if (!window.Plotly || !widget) return;
+  const plots = widget.querySelectorAll(".js-plotly-plot");
+  plots.forEach((plot) => {
+    try { Plotly.Plots.resize(plot); } catch {}
+  });
+}
+
+function openFullscreenWidget(widget) {
+  if (!widget || fullscreenWidget === widget) return;
+  if (fullscreenWidget) closeFullscreenWidget();
+  ensureFullscreenBackdrop();
+  fullscreenWidget = widget;
+  document.body.classList.add("chart-fullscreen-active");
+  widget.classList.add("is-fullscreen");
+  const button = widget.querySelector(".chart-fullscreen-btn");
+  if (button) {
+    button.setAttribute("aria-pressed", "true");
+    button.setAttribute("title", "Exit full screen");
+  }
+  requestAnimationFrame(() => resizePlotsInWidget(widget));
+  setTimeout(() => resizePlotsInWidget(widget), 180);
+}
+
+function closeFullscreenWidget() {
+  const widget = fullscreenWidget;
+  if (!widget) return;
+  fullscreenWidget = null;
+  widget.classList.remove("is-fullscreen");
+  document.body.classList.remove("chart-fullscreen-active");
+  const button = widget.querySelector(".chart-fullscreen-btn");
+  if (button) {
+    button.setAttribute("aria-pressed", "false");
+    button.setAttribute("title", "View full screen");
+  }
+  requestAnimationFrame(() => resizePlotsInWidget(widget));
+  setTimeout(() => resizePlotsInWidget(widget), 180);
+}
+
+function setupGraphWidget(widget, chartEl, title = "Chart") {
+  if (!widget || !chartEl || widget.dataset.graphWidgetReady === "true") return;
+  widget.dataset.graphWidgetReady = "true";
+  widget.classList.add("chart-widget");
+  widget.dataset.graphTitle = title;
+
+  const header =
+    widget.querySelector(".card-head") ||
+    widget.querySelector(".chart-head") ||
+    widget.querySelector(".product-chart-item-head");
+  if (!header) return;
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "chart-fullscreen-btn";
+  button.innerHTML = fullscreenIcon();
+  button.setAttribute("aria-label", `View ${title} full screen`);
+  button.setAttribute("aria-pressed", "false");
+  button.setAttribute("title", "View full screen");
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (fullscreenWidget === widget) closeFullscreenWidget();
+    else openFullscreenWidget(widget);
+  });
+  header.appendChild(button);
+}
+
+function initializeGraphWidgets() {
+  ensureFullscreenBackdrop();
+  for (const config of STATIC_GRAPH_WIDGETS) {
+    const chartEl = document.getElementById(config.chartId);
+    if (!chartEl) continue;
+    const widget = chartEl.closest(config.widgetSelector);
+    setupGraphWidget(widget, chartEl, config.title);
+  }
 }
 
 // ── performance: downsample points, always keeping points that have fills ────
@@ -193,9 +338,9 @@ function classifyTradeDirection(trade, point) {
 }
 
 function tradeClassificationColor(direction) {
-  if (direction === "aggressiveBuy") return "#dc2626";
-  if (direction === "aggressiveSell") return "#2563eb";
-  return "#9ca3af";
+  if (direction === "aggressiveBuy") return "#fb7185";
+  if (direction === "aggressiveSell") return "#38bdf8";
+  return "#cbd5e1";
 }
 
 // ── size bucket filter ────────────────────────────────────────────────────────
@@ -375,7 +520,7 @@ async function loadDefaultStrategy() {
 
 function setStatus(message, isError = false) {
   dom.status.textContent = message;
-  dom.status.style.color = isError ? "#9b2226" : "";
+  dom.status.style.color = isError ? "#fb7185" : "";
 }
 
 function parseKey(point) {
@@ -907,7 +1052,7 @@ function renderPortfolioChart(resultOrPoints) {
       name: "PnL",
       x: axis.x,
       y: yValues,
-      line: { color: "#00C805", width: 2 },
+      line: { color: "#34d399", width: 2 },
       customdata: rows.map((r) => `D${r.day} T${r.timestamp}`),
       hovertemplate: "%{customdata}<br>PnL=%{y:.2f}<extra></extra>",
     },
@@ -953,20 +1098,14 @@ function renderPortfolioChart(resultOrPoints) {
 
 function renderProductCharts(points, fills) {
   dom.productCharts.innerHTML = "";
-  // Skip products that didn't fill at all this run — Round 3 has 12 products
-  // and many (e.g. far-OTM vouchers) never trade. Rendering empty charts wastes
-  // GPU budget and clutters the view.
-  const productsWithFills = new Set(fills.map((f) => f.product));
-  const fillCounts = fills.reduce((counts, fill) => {
-    counts.set(fill.product, (counts.get(fill.product) || 0) + 1);
-    return counts;
-  }, new Map());
+  // Round 3 overview is a fixed product surface: HP, VFE, then every voucher
+  // strike. Fills are not a good proxy for whether an option chart matters.
   const allProducts = [...new Set(points.map((p) => p.product))];
-  const products = allProducts
-    .filter((p) => productsWithFills.has(p))
-    .sort((a, b) => (fillCounts.get(b) || 0) - (fillCounts.get(a) || 0) || a.localeCompare(b))
-    .slice(0, MAX_OVERVIEW_PRODUCT_CHARTS);
-  if (products.length === 0) return;   // nothing traded → nothing to chart
+  const availableProducts = new Set(allProducts);
+  const products = ROUND3_OVERVIEW_PRODUCTS.filter(
+    (product) => availableProducts.has(product) || VOUCHER_STRIKES[product]
+  );
+  if (products.length === 0) return;
 
   for (const product of products) {
     const productFills = fills.filter((f) => f.product === product).sort(sortByDayThenTs);
@@ -1001,15 +1140,49 @@ function renderProductCharts(points, fills) {
     const card = document.createElement("div");
     card.className = "product-chart-item";
 
+    const head = document.createElement("div");
+    head.className = "product-chart-item-head";
     const title = document.createElement("h3");
     title.className = "product-chart-title";
     title.textContent = product;
-    card.appendChild(title);
+    head.appendChild(title);
+    if (VOUCHER_STRIKES[product]) {
+      const strike = document.createElement("span");
+      strike.className = "product-chart-strike";
+      strike.textContent = `Strike ${VOUCHER_STRIKES[product].toLocaleString()}`;
+      head.appendChild(strike);
+    }
+    card.appendChild(head);
 
     const plotTarget = document.createElement("div");
     plotTarget.className = "product-chart";
     card.appendChild(plotTarget);
     dom.productCharts.appendChild(card);
+    setupGraphWidget(card, plotTarget, product);
+
+    if (productPoints.length === 0) {
+      Plotly.newPlot(
+        plotTarget,
+        [],
+        baseLayout({
+          xaxis: { visible: false },
+          yaxis: { visible: false },
+          annotations: [
+            {
+              text: "No market data found for this product",
+              x: 0.5,
+              y: 0.5,
+              xref: "paper",
+              yref: "paper",
+              showarrow: false,
+              font: { color: MUTED_FONT_COLOR, size: 12 },
+            },
+          ],
+        }),
+        { responsive: true, displaylogo: false }
+      );
+      continue;
+    }
 
     const traces = [
       {
@@ -1020,9 +1193,9 @@ function renderProductCharts(points, fills) {
         y: fillY,
         marker: {
           size: productFills.map((f) => Math.max(7, Math.min(16, f.quantity + 5))),
-          color: productFills.map((f) => (f.side === "BUY" ? "#16a34a" : "#dc2626")),
+          color: productFills.map((f) => (f.side === "BUY" ? "#34d399" : "#fb7185")),
           opacity: 0.85,
-          line: { color: "#111827", width: 0.5 },
+          line: { color: "#0f1218", width: 0.5 },
         },
         hovertemplate: "Fill Price=%{y}<extra></extra>",
         yaxis: "y1",
@@ -1033,7 +1206,7 @@ function renderProductCharts(points, fills) {
         name: `${product} PnL`,
         x: axis.x,
         y: mtmValues,
-        line: { color: "#4F8EF7", width: 1.5, dash: "dot" },
+        line: { color: "#38bdf8", width: 1.5, dash: "dot" },
         customdata: stitchedProductPoints.map((p) => `D${p.day} T${p.timestamp}`),
         hovertemplate: "%{customdata}<br>PnL=%{y:.2f}<extra></extra>",
         yaxis: "y2",
@@ -1047,7 +1220,7 @@ function renderProductCharts(points, fills) {
         name: `${product} Fair Value`,
         x: axis.x,
         y: productPoints.map(() => fairValue),
-        line: { color: "#0f766e", width: 2, dash: "dash" },
+        line: { color: "#2dd4bf", width: 2, dash: "dash" },
         customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
         hovertemplate: "%{customdata}<br>Fair Value=%{y:.0f}<extra></extra>",
         yaxis: "y1",
@@ -1059,7 +1232,7 @@ function renderProductCharts(points, fills) {
         name: `${product} Mid Price`,
         x: axis.x,
         y: priceValues,
-        line: { color: "#111827", width: 1.8 },
+        line: { color: "#e2e8f0", width: 1.8 },
         customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
         hovertemplate: "%{customdata}<br>Mid=%{y:.2f}<extra></extra>",
         yaxis: "y1",
@@ -1374,7 +1547,7 @@ function renderBookChart(result) {
       name: "Best Bid",
       x: axis.x,
       y: bestBidY,
-      line: { color: "#2563eb", width: 1.5 },
+      line: { color: "#38bdf8", width: 1.5 },
       customdata: points.map((r) => `D${r.day} T${r.timestamp}`),
       hovertemplate: "%{customdata}<br>Bid=%{y}<extra></extra>",
     },
@@ -1384,7 +1557,7 @@ function renderBookChart(result) {
       name: "Best Ask",
       x: axis.x,
       y: bestAskY,
-      line: { color: "#dc2626", width: 1.5 },
+      line: { color: "#fb7185", width: 1.5 },
       customdata: points.map((r) => `D${r.day} T${r.timestamp}`),
       hovertemplate: "%{customdata}<br>Ask=%{y}<extra></extra>",
     },
@@ -1396,7 +1569,7 @@ function renderBookChart(result) {
       y: mode === "fixed"
         ? points.map((point) => normalizePrice(product, point, inferReferencePrice(product, point)))
         : midY,
-      line: { color: "#9ca3af", width: 1.2, dash: "dot" },
+      line: { color: "#cbd5e1", width: 1.2, dash: "dot" },
       customdata: points.map((r) => `D${r.day} T${r.timestamp}`),
       hovertemplate: "%{customdata}<br>Ref=%{y}<extra></extra>",
     },
@@ -1415,8 +1588,8 @@ function renderBookChart(result) {
       }),
       marker: {
         size: ownFillRows.map((fill) => Math.max(7, Math.min(18, fill.quantity + 4))),
-        color: ownFillRows.map((fill) => (fill.side === "BUY" ? "#16a34a" : "#dc2626")),
-        line: { color: "#111827", width: 0.5 },
+        color: ownFillRows.map((fill) => (fill.side === "BUY" ? "#34d399" : "#fb7185")),
+        line: { color: "#0f1218", width: 0.5 },
         opacity: 0.85,
       },
       customdata: ownFillRows.map((fill) => `${fill.side} q${fill.quantity} @ ${fill.price}`),
@@ -1506,7 +1679,7 @@ function renderPositionChart(result) {
       name: "Position",
       x: axis.x,
       y: points.map((point) => point.position),
-      line: { color: "#0f766e", width: 2 },
+      line: { color: "#2dd4bf", width: 2 },
       customdata: points.map((point) => `D${point.day} T${point.timestamp}`),
       hovertemplate: "%{customdata}<br>Position=%{y}<extra></extra>",
       yaxis: "y1",
@@ -1517,7 +1690,7 @@ function renderPositionChart(result) {
       name: "Product PnL",
       x: axis.x,
       y: points.map((point) => point.product_mtm_pnl),
-      line: { color: "#4F8EF7", width: 1.5, dash: "dot" },
+      line: { color: "#38bdf8", width: 1.5, dash: "dot" },
       customdata: points.map((point) => `D${point.day} T${point.timestamp}`),
       hovertemplate: "%{customdata}<br>PnL=%{y:.2f}<extra></extra>",
       yaxis: "y2",
@@ -1643,7 +1816,7 @@ function renderSpreadBucketChart(result) {
 
   const keys = Object.keys(buckets);
   const vals = keys.map((k) => buckets[k]);
-  const colors = vals.map((v) => (v >= 0 ? "#16a34a" : "#dc2626"));
+  const colors = vals.map((v) => (v >= 0 ? "#34d399" : "#fb7185"));
 
   Plotly.newPlot(
     dom.spreadBucketChart,
@@ -1693,8 +1866,8 @@ function renderPnlBySideChart(result) {
   Plotly.newPlot(
     dom.pnlBySideChart,
     [
-      { type: "scatter", mode: "lines", name: "BUY fills", x: buyX, y: buyY, line: { color: "#16a34a", width: 2 } },
-      { type: "scatter", mode: "lines", name: "SELL fills", x: sellX, y: sellY, line: { color: "#dc2626", width: 2 } },
+      { type: "scatter", mode: "lines", name: "BUY fills", x: buyX, y: buyY, line: { color: "#34d399", width: 2 } },
+      { type: "scatter", mode: "lines", name: "SELL fills", x: sellX, y: sellY, line: { color: "#fb7185", width: 2 } },
     ],
     baseLayout({
       margin: { l: 56, r: 16, t: 8, b: 36 },
@@ -1982,7 +2155,7 @@ function renderSyntheticChart() {
         name: formula,
         x: axis.x,
         y: rows.map((row) => row.value),
-        line: { color: "#d97706", width: 2 },
+        line: { color: "#f59e0b", width: 2 },
         customdata: rows.map((row) => `D${row.day} T${row.timestamp}`),
         hovertemplate: "%{customdata}<br>Value=%{y:.4f}<extra></extra>",
       },
@@ -3123,6 +3296,11 @@ function handleStrategyFile(file) {
 }
 
 function bindEvents() {
+  initializeGraphWidgets();
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeFullscreenWidget();
+  });
+
   dom.strategyInput.addEventListener("change", (event) => {
     handleStrategyFile(event.target.files?.[0]);
   });
