@@ -600,14 +600,18 @@ function updateRound(round) {
   if (dom.heroChartMeta) {
     dom.heroChartMeta.textContent = `Round ${round}`;
   }
-  if (dom.emeraldLimitLabel) {
-    dom.emeraldLimitLabel.textContent = round === "1" || round === "2" ? "Osmium Limit" : "HP Limit";
-  }
-  if (dom.tomatoLimitLabel) {
-    dom.tomatoLimitLabel.textContent = round === "1" || round === "2" ? "Pepper Root Limit" : "VFE Limit";
+  
+  const labels = config.labels || { emerald: "Emerald", tomato: "Tomato" };
+  if (dom.emeraldLimitLabel) dom.emeraldLimitLabel.textContent = `${labels.emerald} Limit`;
+  if (dom.tomatoLimitLabel) dom.tomatoLimitLabel.textContent = `${labels.tomato} Limit`;
+
+  if (dom.voucherLimit) {
+    const isOptionsRound = round === "3" || round === "4";
+    dom.voucherLimit.closest(".field").style.display = isOptionsRound ? "" : "none";
   }
 
   renderDataFiles();
+  renderProductCharts([], []); // Refresh placeholders
   setStatus(`Round ${round} selected.`);
 }
 
@@ -630,6 +634,276 @@ function sortByDayThenTs(a, b) {
   return a.timestamp - b.timestamp;
 }
 
+function parseDelimitedLine(line, delimiter) {
+  const out = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (quoted && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (ch === delimiter && !quoted) {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function parseDelimitedTable(text) {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length < 2) return [];
+  const headerLine = lines[0];
+  const delimiter = (headerLine.match(/;/g) || []).length >= (headerLine.match(/,/g) || []).length ? ";" : ",";
+  const headers = parseDelimitedLine(headerLine, delimiter).map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const cells = parseDelimitedLine(line, delimiter);
+    const row = {};
+    headers.forEach((header, idx) => { row[header] = cells[idx] ?? ""; });
+    return row;
+  });
+}
+
+function numberField(row, ...names) {
+  for (const name of names) {
+    const raw = row?.[name];
+    if (raw === undefined || raw === null || raw === "") continue;
+    const value = Number(raw);
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function stringField(row, ...names) {
+  for (const name of names) {
+    const raw = row?.[name];
+    if (raw !== undefined && raw !== null && String(raw).trim() !== "") return String(raw).trim();
+  }
+  return "";
+}
+
+function findSection(text, label, stopLabels) {
+  const start = text.toLowerCase().indexOf(label.toLowerCase());
+  if (start < 0) return "";
+  let bodyStart = text.indexOf("\n", start);
+  if (bodyStart < 0) return "";
+  bodyStart += 1;
+  let end = text.length;
+  for (const stop of stopLabels) {
+    const idx = text.toLowerCase().indexOf(stop.toLowerCase(), bodyStart);
+    if (idx >= 0) end = Math.min(end, idx);
+  }
+  return text.slice(bodyStart, end).trim();
+}
+
+function parseMaybeJson(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const firstObject = trimmed.indexOf("{");
+    const firstArray = trimmed.indexOf("[");
+    const startCandidates = [firstObject, firstArray].filter((idx) => idx >= 0);
+    if (!startCandidates.length) return null;
+    const start = Math.min(...startCandidates);
+    const end = Math.max(trimmed.lastIndexOf("}"), trimmed.lastIndexOf("]"));
+    if (end <= start) return null;
+    try {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
+}
+
+function normalizeActivityRows(rows) {
+  const points = [];
+  for (const row of rows) {
+    const product = stringField(row, "product", "symbol");
+    const timestamp = numberField(row, "timestamp", "tick", "time");
+    if (!product || timestamp === null) continue;
+    const day = numberField(row, "day") ?? 0;
+    const bidPrices = [1, 2, 3].map((i) => numberField(row, `bid_price_${i}`)).filter((v) => v !== null);
+    const bidVolumes = [1, 2, 3].map((i) => numberField(row, `bid_volume_${i}`)).filter((v) => v !== null);
+    const askPrices = [1, 2, 3].map((i) => numberField(row, `ask_price_${i}`)).filter((v) => v !== null);
+    const askVolumes = [1, 2, 3].map((i) => numberField(row, `ask_volume_${i}`)).filter((v) => v !== null);
+    const mid = numberField(row, "mid_price", "mid") ?? (
+      bidPrices.length && askPrices.length ? (bidPrices[0] + askPrices[0]) / 2 : null
+    );
+    const pnl = numberField(row, "profit_and_loss", "product_mtm_pnl", "pnl") ?? 0;
+    points.push({
+      day,
+      timestamp,
+      product,
+      mid_price: mid ?? 0,
+      best_bid: bidPrices[0] ?? null,
+      best_ask: askPrices[0] ?? null,
+      bid_prices: bidPrices,
+      bid_volumes: bidVolumes,
+      ask_prices: askPrices,
+      ask_volumes: askVolumes,
+      position: numberField(row, "position") ?? 0,
+      realized_pnl: pnl,
+      product_mtm_pnl: pnl,
+      portfolio_mtm_pnl: 0,
+    });
+  }
+
+  const portfolioByKey = new Map();
+  for (const point of points) {
+    const key = parseKey(point);
+    portfolioByKey.set(key, (portfolioByKey.get(key) || 0) + point.product_mtm_pnl);
+  }
+  for (const point of points) {
+    point.portfolio_mtm_pnl = portfolioByKey.get(parseKey(point)) || 0;
+  }
+  return points.sort(sortByDayThenTs);
+}
+
+function normalizeTradeRows(rows) {
+  const fills = [];
+  const marketTrades = [];
+  const positions = {};
+  let seq = 0;
+
+  for (const row of rows) {
+    const product = stringField(row, "product", "symbol");
+    const timestamp = numberField(row, "timestamp", "tick", "time");
+    const price = numberField(row, "price");
+    const quantity = numberField(row, "quantity", "qty");
+    if (!product || timestamp === null || price === null || quantity === null) continue;
+    const day = numberField(row, "day") ?? 0;
+    const buyer = stringField(row, "buyer");
+    const seller = stringField(row, "seller");
+    const isBuy = buyer.toUpperCase() === "SUBMISSION";
+    const isSell = seller.toUpperCase() === "SUBMISSION";
+
+    if (isBuy || isSell) {
+      const side = isBuy ? "BUY" : "SELL";
+      positions[product] = (positions[product] || 0) + (isBuy ? quantity : -quantity);
+      fills.push({
+        seq: seq++,
+        day,
+        timestamp,
+        product,
+        side,
+        fill_type: "oos",
+        price,
+        quantity,
+        position: positions[product],
+        realized_pnl: 0,
+      });
+    } else {
+      marketTrades.push({ day, timestamp, product, price, quantity, buyer, seller });
+    }
+  }
+
+  return { fills: fills.sort(sortByDayThenTs), market_trades: marketTrades.sort(sortByDayThenTs) };
+}
+
+function buildPortfolioPoints(points) {
+  const byKey = new Map();
+  for (const point of points) {
+    const key = parseKey(point);
+    byKey.set(key, {
+      day: point.day,
+      timestamp: point.timestamp,
+      portfolio_mtm_pnl: point.portfolio_mtm_pnl,
+    });
+  }
+  return [...byKey.values()].sort(sortByDayThenTs);
+}
+
+function metricsFromPortfolio(portfolioPoints) {
+  const final = portfolioPoints.at(-1)?.portfolio_mtm_pnl ?? 0;
+  let high = -Infinity;
+  let maxDd = 0;
+  for (const point of portfolioPoints) {
+    high = Math.max(high, point.portfolio_mtm_pnl);
+    maxDd = Math.max(maxDd, high - point.portfolio_mtm_pnl);
+  }
+  return {
+    final_pnl: final,
+    max_drawdown_abs: maxDd,
+    max_drawdown_pct: high > 0 ? maxDd / high : null,
+    sharpe: null,
+    annualized_sharpe: null,
+    sortino: null,
+    calmar: maxDd > 0 ? final / maxDd : null,
+  };
+}
+
+function normalizeUploadedResult(raw) {
+  const result = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const points = Array.isArray(result.points) ? result.points : [];
+  const portfolioPoints = Array.isArray(result.portfolio_points) ? result.portfolio_points : buildPortfolioPoints(points);
+  return {
+    points,
+    portfolio_points: portfolioPoints,
+    fills: Array.isArray(result.fills) ? result.fills : [],
+    market_trades: Array.isArray(result.market_trades) ? result.market_trades : [],
+    state_logs: Array.isArray(result.state_logs) ? result.state_logs : [],
+    metrics: result.metrics || metricsFromPortfolio(portfolioPoints),
+    matching_mode: result.matching_mode || "oos-upload",
+  };
+}
+
+function parseOosUpload(text, fileName = "") {
+  const parsed = parseMaybeJson(text);
+  if (parsed && !Array.isArray(parsed) && (parsed.points || parsed.portfolio_points || parsed.fills || parsed.market_trades)) {
+    return normalizeUploadedResult(parsed);
+  }
+
+  let activityRows = [];
+  let tradeRows = [];
+
+  if (parsed) {
+    if (Array.isArray(parsed)) {
+      tradeRows = parsed;
+    } else {
+      activityRows = parsed.activities || parsed.activities_log || parsed.activity_log || parsed.points || [];
+      tradeRows = parsed.trade_history || parsed.trades || parsed.fills || parsed.market_trades || [];
+    }
+  } else {
+    const activitiesText = findSection(text, "Activities log:", ["Trade History:", "Sandbox logs:", "Lambda logs:"]);
+    const tradeText = findSection(text, "Trade History:", ["Activities log:", "Sandbox logs:", "Lambda logs:"]);
+    if (activitiesText) activityRows = parseDelimitedTable(activitiesText);
+    if (tradeText) {
+      const tradeJson = parseMaybeJson(tradeText);
+      tradeRows = Array.isArray(tradeJson) ? tradeJson : parseDelimitedTable(tradeText);
+    }
+    if (!activityRows.length && !tradeRows.length) {
+      const rows = parseDelimitedTable(text);
+      const headers = Object.keys(rows[0] || {});
+      if (headers.some((h) => h.startsWith("bid_price_")) || headers.includes("mid_price")) activityRows = rows;
+      else tradeRows = rows;
+    }
+  }
+
+  const points = normalizeActivityRows(activityRows);
+  const tradeResult = normalizeTradeRows(tradeRows);
+  const portfolioPoints = buildPortfolioPoints(points);
+  const result = normalizeUploadedResult({
+    points,
+    portfolio_points: portfolioPoints,
+    fills: tradeResult.fills,
+    market_trades: tradeResult.market_trades,
+    state_logs: [],
+    metrics: metricsFromPortfolio(portfolioPoints),
+  });
+  result.source_file = fileName;
+  return result;
+}
+
 function computeRange(values) {
   const clean = values.filter((v) => Number.isFinite(v));
   if (clean.length === 0) {
@@ -646,6 +920,17 @@ function computeRange(values) {
   const span = max - min;
   const pad = span * 0.08;
   return [min - pad, max + pad];
+}
+
+function compactTs(timestamp) {
+  const abs = Math.abs(timestamp);
+  if (abs >= 1_000_000) {
+    return `${(timestamp / 1_000_000).toFixed(1)}M`;
+  }
+  if (abs >= 1_000) {
+    return `${(timestamp / 1_000).toFixed(0)}k`;
+  }
+  return String(timestamp);
 }
 
 function buildCandles(rows, valueKey = "mid_price", targetCandles = 90) {
@@ -698,7 +983,7 @@ function buildTradeVolumeByCandle(product, candleData) {
 }
 
 function productSummaryStats(product, productPoints, productFills, priceValues) {
-  const lastPoint = productPoints.at(-1) || {};
+  const lastPoint = productPoints[productPoints.length - 1] || {};
   const fillsQty = productFills.reduce((sum, fill) => sum + Math.abs(fill.quantity || 0), 0);
   const marketQty = (lastResult.market_trades || [])
     .filter((trade) => trade.product === product)
@@ -727,15 +1012,6 @@ function appendProductSummary(card, stats) {
     summary.appendChild(item);
   }
   card.appendChild(summary);
-}
-
-function constantFiniteValue(values) {
-  const clean = values.filter((v) => Number.isFinite(v));
-  if (clean.length === 0) {
-    return null;
-  }
-  const first = clean[0];
-  return clean.every((value) => value === first) ? first : null;
 }
 
 function stitchSeriesByDay(rows, valueKey) {
@@ -773,17 +1049,6 @@ function buildTimeAxis(rows) {
   if (rows.length === 0) {
     return { x, tickVals: [], tickText: [] };
   }
-
-  const compactTs = (timestamp) => {
-    const abs = Math.abs(timestamp);
-    if (abs >= 1_000_000) {
-      return `${(timestamp / 1_000_000).toFixed(1)}M`;
-    }
-    if (abs >= 1_000) {
-      return `${(timestamp / 1_000).toFixed(0)}k`;
-    }
-    return String(timestamp);
-  };
 
   const indices = new Set([0, rows.length - 1]);
   if (rows.length > 2) {
@@ -1129,25 +1394,6 @@ function buildSelectionShape(index) {
   ];
 }
 
-function selectedRowFromPoints(rows) {
-  if (!analysisState.selectedKey || !rows || rows.length === 0) {
-    return rows[0] ?? null;
-  }
-  return rows.find((row) => parseKey(row) === analysisState.selectedKey) ?? rows[0] ?? null;
-}
-
-function selectTimestampByIndex(rows, index) {
-  if (!rows[index]) {
-    return;
-  }
-
-  const row = rows[index];
-  analysisState.selectedKey = parseKey(row);
-  renderTimestampInspector(analysisState.activeResult);
-  applySelectionCrosshair();
-  updateTimelineChipSelection();
-}
-
 function getPortfolioRows(resultOrPoints) {
   if (Array.isArray(resultOrPoints)) {
     const tracker = new Map();
@@ -1259,6 +1505,7 @@ function renderProductCharts(points, fills) {
   const config = ROUND_CONFIGS[currentRound];
   const products = config.overviewProducts || [];
   if (products.length === 0) return;
+
   if (dom.productBreakdownMeta) {
     const activeCount = new Set((points || []).map((point) => point.product)).size;
     dom.productBreakdownMeta.textContent = activeCount
@@ -1267,39 +1514,12 @@ function renderProductCharts(points, fills) {
   }
 
   for (const product of products) {
-    const productFills = fills.filter((f) => f.product === product).sort(sortByDayThenTs);
+    const productFills = (fills || []).filter((f) => f.product === product).sort(sortByDayThenTs);
     const productPoints = samplePoints(
-      points.filter((p) => p.product === product).sort(sortByDayThenTs),
+      (points || []).filter((p) => p.product === product).sort(sortByDayThenTs),
       productFills,
       performanceMode
     );
-    const stitchedProductPoints = stitchSeriesByDay(
-      productPoints.map((point) => ({
-        ...point,
-        seriesValue: point.product_mtm_pnl,
-      })),
-      "seriesValue"
-    );
-
-    const isFixedValueProduct = Object.hasOwn(FIXED_VALUE_PRODUCTS, product);
-    const fairValue = FIXED_VALUE_PRODUCTS[product];
-    const mtmValues = stitchedProductPoints.map((p) => p.stitchedValue);
-    const candleTarget = performanceMode === "full" ? 180 : 90;
-    const candleRows = productPoints.map((point) => ({
-      ...point,
-      candlePrice: isFixedValueProduct ? fairValue : point.mid_price,
-    }));
-    const candleData = buildCandles(candleRows, "candlePrice", candleTarget);
-    const pnlCandles = buildCandles(stitchedProductPoints, "stitchedValue", candleTarget);
-    const volumeValues = buildTradeVolumeByCandle(product, candleData);
-    const candleTickVals = candleData.x.filter((_, idx) => idx % Math.max(1, Math.ceil(candleData.x.length / 8)) === 0);
-    const candleTickText = candleTickVals.map((x) => (candleData.customdata[x] || "").split(" - ")[0]);
-
-    const fillPoints = productFills
-      .map((fill) => ({ fill, x: candleData.keyToX.get(parseFillKey(fill)) }))
-      .filter((item) => item.x !== undefined);
-    const fillX = fillPoints.map((item) => item.x);
-    const fillY = fillPoints.map((item) => item.fill.price);
 
     const card = document.createElement("div");
     card.className = "product-chart-item";
@@ -1318,6 +1538,45 @@ function renderProductCharts(points, fills) {
     }
     card.appendChild(head);
 
+    const plotTarget = document.createElement("div");
+    plotTarget.className = "product-chart";
+
+    if (productPoints.length === 0) {
+      plotTarget.innerHTML = '<div class="product-empty">Run a backtest to populate this product.</div>';
+      card.appendChild(plotTarget);
+      dom.productCharts.appendChild(card);
+      continue;
+    }
+
+    const stitchedProductPoints = stitchSeriesByDay(
+      productPoints.map((point) => ({
+        ...point,
+        seriesValue: point.product_mtm_pnl,
+      })),
+      "seriesValue"
+    );
+
+    const isFixedValueProduct = Object.hasOwn(FIXED_VALUE_PRODUCTS, product);
+    const fairValue = FIXED_VALUE_PRODUCTS[product];
+    const mtmValues = stitchedProductPoints.map((p) => p.stitchedValue);
+    const candleTarget = performanceMode === "full" ? 180 : 90;
+    const candleRows = productPoints.map((point) => ({
+      ...point,
+      candlePrice: isFixedValueProduct ? fairValue : point.mid_price,
+    }));
+    
+    const candleData = buildCandles(candleRows, "candlePrice", candleTarget);
+    const pnlCandles = buildCandles(stitchedProductPoints, "stitchedValue", candleTarget);
+    const volumeValues = buildTradeVolumeByCandle(product, candleData);
+    const candleTickVals = candleData.x.filter((_, idx) => idx % Math.max(1, Math.ceil(candleData.x.length / 8)) === 0);
+    const candleTickText = candleTickVals.map((x) => (candleData.customdata[x] || "").split(" - ")[0]);
+
+    const fillPoints = productFills
+      .map((fill) => ({ fill, x: candleData.keyToX.get(parseFillKey(fill)) }))
+      .filter((item) => item.x !== undefined);
+    const fillX = fillPoints.map((item) => item.x);
+    const fillY = fillPoints.map((item) => item.fill.price);
+
     appendProductSummary(
       card,
       productSummaryStats(product, productPoints, productFills, [
@@ -1327,16 +1586,9 @@ function renderProductCharts(points, fills) {
       ])
     );
 
-    const plotTarget = document.createElement("div");
-    plotTarget.className = "product-chart";
     card.appendChild(plotTarget);
     dom.productCharts.appendChild(card);
     setupGraphWidget(card, plotTarget, product);
-
-    if (productPoints.length === 0) {
-      plotTarget.innerHTML = '<div class="product-empty">Run a backtest to populate this product.</div>';
-      continue;
-    }
 
     const traces = [
       {
@@ -1747,24 +1999,6 @@ function renderInventoryHeatmap(result) {
   Plotly.newPlot(dom.inventoryHeatmap, [{ type: "bar", x: prods, y: util, marker: { color: cols } }], baseLayout({ margin: { b: 80 }, yaxis: { title: "Limit %", range: [-110, 110] } }), PLOTLY_CONFIG);
 }
 
-function renderAnalysis(result) {
-  analysisState.activeResult = result;
-  buildPointLookup(result.points);
-  buildTraderIdOptions(result);
-  analysisState.timelineEvents = buildTimelineEvents(result);
-  renderEventTimeline(analysisState.timelineEvents);
-  renderBookChart(result);
-  renderPositionChart(result);
-  renderExecutionQualityChart(result);
-  renderInventoryHeatmap(result);
-  renderAnalysisFillsTable(result);
-  renderMissedOpportunitiesTable(result);
-  renderTimestampInspector(result);
-  renderIndicatorChart(result);
-  renderSpreadBucketChart(result);
-  renderPnlBySideChart(result);
-}
-
 function applyResult(result) {
   lastResult = result;
   analysisState.dirty = true;
@@ -1830,7 +2064,6 @@ function clearPinnedRuns() {
 function renderSyntheticChart() {
   if (!dom.syntheticChart) return;
   Plotly.purge(dom.syntheticChart);
-  // Implementation omitted for brevity, but would use PLOTLY_CONFIG
 }
 
 let backtestWorker = null;
@@ -1839,7 +2072,6 @@ let lastFileModified = 0;
 
 function initWorker() {
   if (backtestWorker) return;
-  // Add cache-busting to force reload of corrected worker.js
   backtestWorker = new Worker(`worker.js?v=${Date.now()}`);
   backtestWorker.onmessage = (e) => {
     const { type, completed, total, result, error } = e.data;

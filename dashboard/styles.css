@@ -152,7 +152,9 @@ body {
   transform: translateY(4px);
 }
 [data-tab-panel].on {
-  display: flex !important; /* using flex as per .content/.analysis-content classes */
+  display: flex !important;
+  flex-direction: column;
+  gap: 24px;
   opacity: 1;
   transform: translateY(0);
 }
