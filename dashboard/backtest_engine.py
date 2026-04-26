@@ -578,12 +578,17 @@ def _build_datasets(file_map: dict[str, str]) -> list[dict[str, Any]]:
     ]
 
 
-def run_dashboard_backtest(
+async def run_dashboard_backtest(
     strategy_code: str,
     file_map_json: str,
     matching_mode: str = "none",
     limits_override_json: str = "{}",
+    progress_callback=None,
+    progress_every: int = 200,
 ) -> str:
+    """Async because the browser needs control back periodically to repaint
+    the progress bar. Yields to the JS event loop every `progress_every` ticks."""
+    import asyncio  # local: only needed when running in Pyodide
     _register_datamodel_module()
 
     if matching_mode not in {"all", "worse", "none"}:
@@ -608,6 +613,15 @@ def run_dashboard_backtest(
     day_equity_paths: list[list[float]] = []
 
     fill_seq = 0
+
+    # ── progress bookkeeping ─────────────────────────────────────────────────
+    total_ticks = sum(len(ds["prices"][0]) for ds in datasets)
+    completed_ticks = 0
+    if progress_callback is not None:
+        try:
+            progress_callback(0, total_ticks)
+        except Exception:
+            pass  # never let UI errors abort a backtest
 
     for _ds_idx, dataset in enumerate(datasets):
         prices_by_ts, products, day_num = dataset["prices"]
@@ -735,7 +749,26 @@ def run_dashboard_backtest(
             for p in range(len(all_points) - len(products), len(all_points)):
                 all_points[p]["portfolio_mtm_pnl"] = portfolio_pnl
 
+            # ── progress + yield to the JS event loop ─────────────────────
+            completed_ticks += 1
+            if completed_ticks % progress_every == 0:
+                if progress_callback is not None:
+                    try:
+                        progress_callback(completed_ticks, total_ticks)
+                    except Exception:
+                        pass
+                # asyncio.sleep(0) hands control back to the browser so it
+                # can repaint; without this the UI stays frozen for the
+                # whole backtest.
+                await asyncio.sleep(0)
+
         day_equity_paths.append(day_equity)
+
+    if progress_callback is not None:
+        try:
+            progress_callback(total_ticks, total_ticks)
+        except Exception:
+            pass
 
     metrics = _json_safe_metrics(_compute_metrics(day_equity_paths))
     payload = {

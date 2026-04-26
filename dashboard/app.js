@@ -17,6 +17,9 @@ const dom = {
   strategyMeta: document.getElementById("strategyMeta"),
   status: document.getElementById("status"),
   runButton: document.getElementById("runButton"),
+  runProgress: document.getElementById("runProgress"),
+  runProgressLabel: document.getElementById("runProgressLabel"),
+  runProgressWrap: document.getElementById("runProgressWrap"),
   matchingMode: document.getElementById("matchingMode"),
   emeraldLimit: document.getElementById("emeraldLimit"),
   tomatoLimit: document.getElementById("tomatoLimit"),
@@ -2629,10 +2632,33 @@ async function ensurePyodide() {
   return pyodide;
 }
 
+function setRunProgress(completed, total) {
+  if (!dom.runProgress) return;
+  if (total > 0) {
+    dom.runProgress.max = total;
+    dom.runProgress.value = completed;
+  }
+  if (dom.runProgressLabel) {
+    const pct = total > 0 ? Math.floor((completed / total) * 100) : 0;
+    dom.runProgressLabel.textContent =
+      completed >= total && total > 0
+        ? "Done"
+        : `${pct}% · ${completed.toLocaleString()} / ${total.toLocaleString()} ticks`;
+  }
+}
+
+function showRunProgress(visible) {
+  if (dom.runProgressWrap) {
+    dom.runProgressWrap.style.display = visible ? "" : "none";
+  }
+}
+
 async function runSimulation() {
   try {
     dom.runButton.disabled = true;
     setStatus("Running simulation...");
+    showRunProgress(true);
+    setRunProgress(0, 1);
 
     const py = await ensurePyodide();
     const limits = getSelectedLimits();
@@ -2646,12 +2672,19 @@ async function runSimulation() {
     py.globals.set("dashboard_file_map_json", JSON.stringify(fileMap));
     py.globals.set("dashboard_matching_mode", dom.matchingMode.value);
     py.globals.set("dashboard_limits_json", JSON.stringify(limits));
+    py.globals.set("dashboard_progress", (completed, total) => {
+      // Pyodide passes ints as JS numbers
+      setRunProgress(Number(completed), Number(total));
+    });
 
-    const payloadText = py.runPython(`run_dashboard_backtest(
+    // runPythonAsync + top-level await lets the browser repaint between
+    // asyncio.sleep(0) yields inside the backtest engine.
+    const payloadText = await py.runPythonAsync(`await run_dashboard_backtest(
       strategy_code=dashboard_strategy_code,
       file_map_json=dashboard_file_map_json,
       matching_mode=dashboard_matching_mode,
       limits_override_json=dashboard_limits_json,
+      progress_callback=dashboard_progress,
     )`);
 
     const payload = JSON.parse(payloadText);
@@ -2664,6 +2697,8 @@ async function runSimulation() {
     setStatus(error?.message || String(error), true);
   } finally {
     dom.runButton.disabled = false;
+    // Keep the bar visible at 100% briefly so the user sees the completion.
+    setTimeout(() => showRunProgress(false), 1500);
   }
 }
 
