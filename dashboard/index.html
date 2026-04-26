@@ -1577,13 +1577,20 @@ table.tbl {
     <div class="section">
       <div class="section-head">
         <span class="section-title">Strategy</span>
-        <label class="section-action" for="strategyInput" style="cursor:pointer">Browse</label>
+        <div style="display:flex;gap:8px">
+          <button id="watchButton" class="section-action" type="button" title="Auto-run on file save">Watch</button>
+          <label class="section-action" for="strategyInput" style="cursor:pointer">Browse</label>
+        </div>
       </div>
       <div class="drop" id="dropZone">
         <strong>Drop a .py file</strong>
         <div class="muted" style="font-size:11px;margin-top:2px">or click to choose</div>
         <input id="strategyInput" type="file" accept=".py" style="position:absolute;inset:0;opacity:0;cursor:pointer" />
         <div class="file-pill" id="strategyMeta" style="position:relative;z-index:1">Drop a .py strategy file to begin.</div>
+      </div>
+      <div id="watchStatus" class="sidebar-status" style="display:none;color:var(--accent);margin-top:8px">
+        <span class="dot" style="display:inline-block;width:6px;height:6px;background:var(--accent);border-radius:50%;margin-right:5px"></span>
+        Watching for changes...
       </div>
     </div>
 

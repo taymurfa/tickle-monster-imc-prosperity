@@ -3194,98 +3194,102 @@ async function exportExcel(options = {}) {
   }
 }
 
-async function ensurePyodide() {
-  if (!pyodide) {
-    pyodide = await loadPyodide();
-  }
+let backtestWorker = null;
+let fileHandle = null;
+let lastFileModified = 0;
 
-  // Reload the engine for each simulation so dashboard runs reflect local
-  // backtest_engine.py edits without requiring a full browser refresh.
-  const engineCode = await fetchText(`backtest_engine.py?ts=${Date.now()}`);
-  pyodide.runPython(engineCode);
-  return pyodide;
+function initWorker() {
+  if (backtestWorker) return;
+  backtestWorker = new Worker("worker.js");
+  backtestWorker.onmessage = (e) => {
+    const { type, completed, total, result, error } = e.data;
+    if (type === "progress") {
+      setRunProgress(completed, total);
+    } else if (type === "result") {
+      const payload = JSON.parse(result);
+      applyResult(payload);
+      updateSyntheticRunOptions();
+      setStatus(`Simulation complete (${payload.fills.length} fills).`);
+      if (dom.exportExcel?.checked) exportExcel({ preferPicker: false });
+      dom.runButton.disabled = false;
+      showRunProgress(false);
+    } else if (type === "error") {
+      console.error(error);
+      let msg = error;
+      const lines = msg.split('\n').map(l => l.trim()).filter(Boolean);
+      const pythonError = lines.find(l => l.match(/^[a-zA-Z]+Error:/));
+      if (pythonError) msg = `Python Crash: ${pythonError}`;
+      setStatus(msg, true);
+      dom.runButton.disabled = false;
+      showRunProgress(false);
+    }
+  };
 }
 
-function setRunProgress(completed, total) {
-  if (!dom.runProgress) return;
-  if (total > 0) {
-    dom.runProgress.max = total;
-    dom.runProgress.value = completed;
+async function loadAllFiles() {
+  const map = {};
+  for (const name of DATA_FILES) {
+    const path = `${DATA_BASE_PATH}/${name}`;
+    if (!window._fileCache) window._fileCache = {};
+    if (!window._fileCache[path]) {
+      const res = await fetch(path);
+      window._fileCache[path] = await res.text();
+    }
+    map[name] = window._fileCache[path];
   }
-  if (dom.runProgressLabel) {
-    const pct = total > 0 ? Math.floor((completed / total) * 100) : 0;
-    dom.runProgressLabel.textContent =
-      completed >= total && total > 0
-        ? "Done"
-        : `${pct}% · ${completed.toLocaleString()} / ${total.toLocaleString()} ticks`;
-  }
+  return map;
 }
 
-function showRunProgress(visible) {
-  if (dom.runProgressWrap) {
-    dom.runProgressWrap.style.display = visible ? "" : "none";
-  }
+async function startWatching() {
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{ description: "Python Strategy", accept: { "text/x-python": [".py"] } }],
+    });
+    fileHandle = handle;
+    const file = await fileHandle.getFile();
+    strategyCode = await file.text();
+    lastFileModified = file.lastModified;
+    dom.strategyMeta.textContent = file.name;
+    document.getElementById("watchStatus").style.display = "block";
+    runSimulation();
+    
+    setInterval(async () => {
+      if (!fileHandle) return;
+      try {
+        const f = await fileHandle.getFile();
+        if (f.lastModified > lastFileModified) {
+          lastFileModified = f.lastModified;
+          strategyCode = await f.text();
+          setStatus(`File changed: ${f.name}. Re-running...`);
+          runSimulation();
+        }
+      } catch (e) { /* ignore permission issues on background poll */ }
+    }, 1000);
+  } catch (err) { console.error("Watch failed", err); }
 }
 
 async function runSimulation() {
   if (!strategyCode.trim()) {
-    setStatus("Upload a Python strategy file before running.", true);
+    setStatus("Upload a strategy file or click 'Watch' before running.", true);
     return;
   }
+  initWorker();
+  dom.runButton.disabled = true;
+  setStatus("Running in background...");
+  showRunProgress(true);
+  setRunProgress(0, 1);
 
-  try {
-    dom.runButton.disabled = true;
-    setStatus("Running simulation...");
-    showRunProgress(true);
-    setRunProgress(0, 1);
+  const engineCode = await (await fetch("backtest_engine.py?ts=" + Date.now())).text();
+  const fileMap = await loadAllFiles();
 
-    const py = await ensurePyodide();
-    const limits = getSelectedLimits();
-
-    const fileEntries = await Promise.all(
-      DATA_FILES.map(async (file) => [file, await fetchText(`${DATA_BASE_PATH}/${file}`)])
-    );
-    const fileMap = Object.fromEntries(fileEntries);
-
-    py.globals.set("dashboard_strategy_code", strategyCode);
-    py.globals.set("dashboard_file_map_json", JSON.stringify(fileMap));
-    py.globals.set("dashboard_matching_mode", dom.matchingMode.value);
-    py.globals.set("dashboard_limits_json", JSON.stringify(limits));
-    py.globals.set("dashboard_progress", (completed, total) => {
-      // Pyodide passes ints as JS numbers
-      setRunProgress(Number(completed), Number(total));
-    });
-
-    // runPythonAsync + top-level await lets the browser repaint between
-    // asyncio.sleep(0) yields inside the backtest engine.
-    const payloadText = await py.runPythonAsync(`await run_dashboard_backtest(
-      strategy_code=dashboard_strategy_code,
-      file_map_json=dashboard_file_map_json,
-      matching_mode=dashboard_matching_mode,
-      limits_override_json=dashboard_limits_json,
-      progress_callback=dashboard_progress,
-    )`);
-
-    const payload = JSON.parse(payloadText);
-    applyResult(payload);
-    updateSyntheticRunOptions();
-    setStatus(`Simulation complete (${payload.fills.length} fills).`);
-    if (dom.exportExcel?.checked) exportExcel({ preferPicker: false });
-  } catch (error) {
-    console.error(error);
-    let msg = error?.message || String(error);
-    // Attempt to extract the actual Python error line (usually the last non-empty line)
-    const lines = msg.split('\n').map(l => l.trim()).filter(Boolean);
-    const pythonError = lines.find(l => l.match(/^[a-zA-Z]+Error:/));
-    if (pythonError) {
-      msg = `Python Crash: ${pythonError}`;
-    }
-    setStatus(msg, true);
-  } finally {
-    dom.runButton.disabled = false;
-    // Keep the bar visible at 100% briefly so the user sees the completion.
-    setTimeout(() => showRunProgress(false), 1500);
-  }
+  backtestWorker.postMessage({
+    type: "run",
+    strategy: strategyCode,
+    fileMap,
+    matchingMode: dom.matchingMode.value,
+    limitsOverride: getSelectedLimits(),
+    engine: engineCode
+  });
 }
 
 function updateSyntheticRunOptions() {
@@ -3684,6 +3688,10 @@ function loadSettings() {
 function bindEvents() {
   initializeGraphWidgets();
   
+  if (dom.watchButton) {
+    dom.watchButton.addEventListener("click", startWatching);
+  }
+
   if (dom.roundSelect) {
     dom.roundSelect.addEventListener("change", (e) => {
       updateRound(e.target.value);
