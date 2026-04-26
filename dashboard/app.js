@@ -1285,6 +1285,13 @@ function resolveBookViewMode(product, productPoints) {
   return detectFixedLikeProduct(product, productPoints) ? "fixed" : "standard";
 }
 
+function selectedRowFromPoints(rows) {
+  if (!analysisState.selectedKey || !rows || rows.length === 0) {
+    return rows?.[0] ?? null;
+  }
+  return rows.find((row) => parseKey(row) === analysisState.selectedKey) ?? rows[0] ?? null;
+}
+
 function selectedIndexFromRows(rows) {
   if (!rows || rows.length === 0) {
     return null;
@@ -2556,10 +2563,6 @@ function bindEvents() {
   if (dom.dropZone) {
     dom.dropZone.addEventListener("click", () => dom.strategyInput.click());
   }
-  const strategyBrowseButton = document.getElementById("strategyBrowseButton");
-  if (strategyBrowseButton) {
-    strategyBrowseButton.addEventListener("click", () => dom.strategyInput.click());
-  }
   if (dom.logInput) {
     dom.logInput.addEventListener("change", (e) => {
       const f = e.target.files?.[0];
@@ -2569,10 +2572,6 @@ function bindEvents() {
   }
   if (dom.logDropZone) {
     dom.logDropZone.addEventListener("click", () => dom.logInput.click());
-  }
-  const logBrowseButton = document.getElementById("logBrowseButton");
-  if (logBrowseButton) {
-    logBrowseButton.addEventListener("click", () => dom.logInput.click());
   }
   const logDropTargets = [dom.logDropZone, dom.logInput].filter(Boolean);
   for (const target of logDropTargets) {
