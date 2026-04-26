@@ -1,4 +1,16 @@
 const ROUND_CONFIGS = {
+  "0": {
+    basePath: "prosperity_docs/Mitchell",
+    files: [
+      "prices_round_0_day_-2.csv",
+      "prices_round_0_day_-1.csv",
+      "trades_round_0_day_-2.csv",
+      "trades_round_0_day_-1.csv",
+    ],
+    labels: { emerald: "Emeralds", tomato: "Tomatoes" },
+    overviewProducts: ["EMERALDS", "TOMATOES"],
+    voucherStrikes: {},
+  },
   "1": {
     basePath: "ROUND_1/ROUND1",
     files: [
@@ -252,6 +264,8 @@ const STATIC_GRAPH_WIDGETS = [
   { chartId: "portfolioChart", widgetSelector: ".hero-right", headerSelector: ".chart-head", title: "Equity curve" },
   { chartId: "analysisBookChart", widgetSelector: ".card", headerSelector: ".card-head", title: "Top of book + fills" },
   { chartId: "analysisPositionChart", widgetSelector: ".card", headerSelector: ".card-head", title: "Position + product P&L" },
+  { chartId: "executionQualityChart", widgetSelector: ".card", headerSelector: ".card-head", title: "Execution Quality" },
+  { chartId: "inventoryHeatmap", widgetSelector: ".card", headerSelector: ".card-head", title: "Inventory Heatmap" },
   { chartId: "indicatorChart", widgetSelector: ".card", headerSelector: ".card-head", title: "Indicator overlays" },
   { chartId: "spreadBucketChart", widgetSelector: ".card", headerSelector: ".card-head", title: "P&L by spread bucket" },
   { chartId: "pnlBySideChart", widgetSelector: ".card", headerSelector: ".card-head", title: "Cumulative P&L by side" },
@@ -1408,6 +1422,18 @@ function renderMetrics(metrics) {
     if (el) el.textContent = val;
   };
   setText("heroPnl", fmtNumber(metrics.final_pnl));
+  const heroPnlEl = document.getElementById("heroPnl");
+  if (heroPnlEl) {
+    const pnlValueParent = heroPnlEl.closest(".pnl-value");
+    if (pnlValueParent) {
+      pnlValueParent.classList.remove("pnl-profit", "pnl-loss");
+      // trigger reflow to restart animation
+      void pnlValueParent.offsetWidth;
+      if (metrics.final_pnl > 0) pnlValueParent.classList.add("pnl-profit");
+      else if (metrics.final_pnl < 0) pnlValueParent.classList.add("pnl-loss");
+    }
+  }
+
   const subtitle = document.getElementById("heroSubtitle");
   if (subtitle) {
     const pnl = metrics.final_pnl;
@@ -2003,6 +2029,96 @@ function renderPnlBySideChart(result) {
   );
 }
 
+function renderExecutionQualityChart(result) {
+  if (!dom.executionQualityChart) return;
+  const product = analysisState.product;
+  if (product === "ALL") {
+    Plotly.purge(dom.executionQualityChart);
+    return;
+  }
+
+  const fills = getFilteredFills(result).sort(sortByDayThenTs);
+  if (fills.length === 0) {
+    Plotly.purge(dom.executionQualityChart);
+    return;
+  }
+
+  const x = [], slippage = [], colors = [];
+  fills.forEach((f, i) => {
+    const pt = analysisState.pointLookup.get(`${f.product}|${f.day}|${f.timestamp}`);
+    if (!pt) return;
+    const mid = pt.mid_price;
+    const slip = f.side === "BUY" ? f.price - mid : mid - f.price;
+    x.push(i);
+    slippage.push(slip);
+    colors.push(slip <= 0 ? "#34d399" : "#fb7185"); // green if filled at or better than mid
+  });
+
+  Plotly.newPlot(
+    dom.executionQualityChart,
+    [{
+      type: "bar",
+      x,
+      y: slippage,
+      marker: { color: colors },
+      hovertemplate: "Fill %{x}<br>Slippage: %{y:.2f}<extra></extra>"
+    }],
+    baseLayout({
+      margin: { l: 56, r: 16, t: 8, b: 36 },
+      xaxis: { title: "Trade Sequence" },
+      yaxis: { title: "Slippage (Price - Mid)" },
+    }),
+    { responsive: true, displaylogo: false }
+  );
+}
+
+function renderInventoryHeatmap(result) {
+  if (!dom.inventoryHeatmap) return;
+  
+  // Inventory heatmap is best viewed across all products for the selected TS
+  const row = selectedRowFromPoints(analysisState.bookRows);
+  if (!row) {
+    Plotly.purge(dom.inventoryHeatmap);
+    return;
+  }
+
+  const tsKey = parseKey(row);
+  const pointsAtTs = result.points.filter(p => parseKey(p) === tsKey);
+  if (pointsAtTs.length === 0) {
+    Plotly.purge(dom.inventoryHeatmap);
+    return;
+  }
+
+  const products = pointsAtTs.map(p => p.product);
+  const positions = pointsAtTs.map(p => p.position);
+  const limits = products.map(p => getSelectedLimits()[p] || 50);
+  const utilization = positions.map((pos, i) => (pos / limits[i]) * 100);
+
+  const colors = utilization.map(u => {
+    const abs = Math.abs(u);
+    if (abs > 90) return "#fb7185"; // danger
+    if (abs > 50) return "#f59e0b"; // warning
+    return "#34d399"; // healthy
+  });
+
+  Plotly.newPlot(
+    dom.inventoryHeatmap,
+    [{
+      type: "bar",
+      x: products,
+      y: utilization,
+      marker: { color: colors },
+      hovertemplate: "%{x}<br>Limit Util: %{y:.1f}%<extra></extra>"
+    }],
+    baseLayout({
+      margin: { l: 56, r: 16, t: 8, b: 80 }, // more bottom margin for product names
+      xaxis: { title: "", tickangle: -45 },
+      yaxis: { title: "Limit Utilization %", range: [-110, 110] },
+    }),
+    { responsive: true, displaylogo: false }
+  );
+}
+
 function renderAnalysis(result) {
   analysisState.activeResult = result;
   buildPointLookup(result.points);
@@ -2011,6 +2127,8 @@ function renderAnalysis(result) {
   renderEventTimeline(analysisState.timelineEvents);
   renderBookChart(result);
   renderPositionChart(result);
+  renderExecutionQualityChart(result);
+  renderInventoryHeatmap(result);
   renderAnalysisFillsTable(result);
   renderMissedOpportunitiesTable(result);
   renderTimestampInspector(result);
@@ -3155,7 +3273,14 @@ async function runSimulation() {
     if (dom.exportExcel?.checked) exportExcel({ preferPicker: false });
   } catch (error) {
     console.error(error);
-    setStatus(error?.message || String(error), true);
+    let msg = error?.message || String(error);
+    // Attempt to extract the actual Python error line (usually the last non-empty line)
+    const lines = msg.split('\n').map(l => l.trim()).filter(Boolean);
+    const pythonError = lines.find(l => l.match(/^[a-zA-Z]+Error:/));
+    if (pythonError) {
+      msg = `Python Crash: ${pythonError}`;
+    }
+    setStatus(msg, true);
   } finally {
     dom.runButton.disabled = false;
     // Keep the bar visible at 100% briefly so the user sees the completion.
@@ -3522,16 +3647,74 @@ function updateRound(round) {
   setStatus(`Switched to Round ${currentRound}.`);
 }
 
+function saveSettings() {
+  const settings = {
+    roundSelect: dom.roundSelect?.value,
+    matchingMode: dom.matchingMode?.value,
+    emeraldLimit: dom.emeraldLimit?.value,
+    tomatoLimit: dom.tomatoLimit?.value,
+    voucherLimit: dom.voucherLimit?.value,
+    performanceMode: dom.performanceMode?.value,
+  };
+  localStorage.setItem('prosperitySettings', JSON.stringify(settings));
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem('prosperitySettings');
+    if (!raw) return;
+    const settings = JSON.parse(raw);
+    if (settings.roundSelect && dom.roundSelect) {
+      dom.roundSelect.value = settings.roundSelect;
+      updateRound(settings.roundSelect);
+    }
+    if (settings.matchingMode && dom.matchingMode) dom.matchingMode.value = settings.matchingMode;
+    if (settings.emeraldLimit && dom.emeraldLimit) dom.emeraldLimit.value = settings.emeraldLimit;
+    if (settings.tomatoLimit && dom.tomatoLimit) dom.tomatoLimit.value = settings.tomatoLimit;
+    if (settings.voucherLimit && dom.voucherLimit) dom.voucherLimit.value = settings.voucherLimit;
+    if (settings.performanceMode && dom.performanceMode) {
+      dom.performanceMode.value = settings.performanceMode;
+      performanceMode = settings.performanceMode;
+    }
+  } catch (e) {
+    console.error("Failed to load settings", e);
+  }
+}
+
 function bindEvents() {
   initializeGraphWidgets();
   
   if (dom.roundSelect) {
     dom.roundSelect.addEventListener("change", (e) => {
       updateRound(e.target.value);
+      saveSettings();
     });
   }
+  
+  // Save settings when limits/modes change
+  const configInputs = [dom.matchingMode, dom.emeraldLimit, dom.tomatoLimit, dom.voucherLimit, dom.performanceMode];
+  configInputs.forEach(input => {
+    if (input) input.addEventListener("change", saveSettings);
+  });
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeFullscreenWidget();
+    
+    // Ignore shortcuts if typing in an input
+    if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA" || event.target.tagName === "SELECT") {
+      return;
+    }
+    
+    if (event.key.toLowerCase() === 'r') {
+      event.preventDefault();
+      if (!dom.runButton.disabled) runSimulation();
+    } else if (['0', '1', '2', '3'].includes(event.key)) {
+      if (dom.roundSelect && dom.roundSelect.value !== event.key) {
+        dom.roundSelect.value = event.key;
+        updateRound(event.key);
+        saveSettings();
+      }
+    }
   });
 
   dom.strategyInput.addEventListener("change", (event) => {
@@ -3681,6 +3864,7 @@ function bindEvents() {
 }
 
 async function main() {
+  loadSettings();
   renderDataFiles();
   applyRoundThreeLabels();
   bindEvents();
