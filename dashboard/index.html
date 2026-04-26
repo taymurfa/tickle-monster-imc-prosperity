@@ -1254,7 +1254,7 @@ table.tbl {
       <button class="rail-btn on" data-rail="overview" title="Overview">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       </button>
-      <button class="rail-btn" data-rail="analyze" title="Analyze">
+      <button class="rail-btn" data-rail="analysis" title="Analyze">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-3 4 4 5-7"/></svg>
       </button>
       <button class="rail-btn" data-rail="compare" title="Compare">
@@ -1274,22 +1274,6 @@ table.tbl {
         <div class="brand-name">Prosperity</div>
         <span class="brand-sub">Strategy Lab · v3.2</span>
       </div>
-    </div>
-
-    <!-- live run summary -->
-    <div class="run-summary" data-screen-label="run-summary">
-      <div class="row">
-        <span class="run-status"><span class="dot"></span>Run complete</span>
-        <span class="ts">14.2s</span>
-      </div>
-      <h3>Pepper v2 · matched</h3>
-      <p>Round 3 · Day 0–2 · 30,000 ticks</p>
-      <dl class="meta">
-        <div><dt>Strategy</dt><dd>mm_strategy.py</dd></div>
-        <div><dt>Mode</dt><dd>worse</dd></div>
-        <div><dt>Pepper lim</dt><dd>80</dd></div>
-        <div><dt>Osmium lim</dt><dd>80</dd></div>
-      </dl>
     </div>
 
     <!-- strategy section -->
@@ -1323,12 +1307,12 @@ table.tbl {
 
       <div class="field-row">
         <div class="field">
-          <label class="field-label" for="emeraldLimit">Pepper lim</label>
-          <input id="emeraldLimit" class="input" type="number" value="80" step="1" />
+          <label class="field-label" for="emeraldLimit">HYDROGEL_PACK Limit</label>
+          <input id="emeraldLimit" class="input" type="number" value="200" step="1" />
         </div>
         <div class="field">
-          <label class="field-label" for="tomatoLimit">Osmium lim</label>
-          <input id="tomatoLimit" class="input" type="number" value="80" step="1" />
+          <label class="field-label" for="tomatoLimit">VELVETFRUIT_EXTRACT Limit</label>
+          <input id="tomatoLimit" class="input" type="number" value="200" step="1" />
         </div>
       </div>
 
@@ -1368,7 +1352,7 @@ table.tbl {
         <span class="section-title">Pinned runs</span>
         <button id="clearPinnedRuns" class="section-action">Clear</button>
       </div>
-      <input id="runLabel" class="input" type="text" placeholder="Run label e.g. Pepper v2" style="margin-bottom:6px" />
+      <input id="runLabel" class="input" type="text" placeholder="Run label" style="margin-bottom:6px" />
       <button id="pinRunButton" class="btn-primary" type="button" style="width:100%;margin-bottom:8px">Pin current run</button>
       <ul id="savedRunsList" class="pinned-list"></ul>
     </div>
@@ -1389,13 +1373,6 @@ table.tbl {
     </div>
 
     <div style="flex:1"></div>
-
-    <div class="section" style="padding-bottom: 22px">
-      <div style="display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-3)">
-        <span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--pos);box-shadow:0 0 0 3px oklch(0.80 0.16 148 / 0.18)"></span>
-        Pyodide · ready · 47ms
-      </div>
-    </div>
   </aside>
 
   <!-- ============ WORKSPACE ============ -->
@@ -1405,8 +1382,6 @@ table.tbl {
     <div class="topbar">
       <div class="crumbs">
         <span>Round 3</span>
-        <span class="sep">/</span>
-        <span>Pepper v2</span>
         <span class="sep">/</span>
         <span class="here">overview</span>
       </div>
@@ -1420,8 +1395,7 @@ table.tbl {
 
       <div class="spacer"></div>
 
-      <span class="meta-pill"><span class="lbl">tick</span>0 → 29,900</span>
-      <span class="meta-pill"><span class="lbl">seed</span>—</span>
+      <span class="meta-pill"><span class="lbl">round</span>3</span>
       <button class="icon-btn" title="Export">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m6 9 6 6 6-6"/><path d="M5 21h14"/></svg>
       </button>
@@ -1448,45 +1422,43 @@ table.tbl {
           <div class="pnl-display">
             <div class="pnl-value">
               <span class="currency">SH</span>
-              12,847<span style="color: var(--ink-3); font-size: 36px; letter-spacing: -0.02em">.20</span>
+              <span id="heroPnl">—</span>
             </div>
-            <div class="pnl-delta pos">
-              <span class="arrow">↑</span>
-              +3,412.50
-              <span class="vs">vs. Pepper baseline</span>
+            <div class="pnl-delta">
+              <span class="vs">run a backtest to populate metrics</span>
             </div>
           </div>
 
           <div class="chips">
             <div class="chip">
               <div class="k">Sharpe (ann.)</div>
-              <div class="v">2.41</div>
-              <div class="sub">σ 0.42</div>
+              <div class="v">—</div>
+              <div class="sub">final run</div>
             </div>
             <div class="chip">
               <div class="k">Max DD</div>
-              <div class="v neg">−612</div>
-              <div class="sub">−4.7%</div>
+              <div class="v">—</div>
+              <div class="sub">peak-to-trough</div>
             </div>
             <div class="chip">
               <div class="k">Sortino</div>
-              <div class="v">3.18</div>
-              <div class="sub">downside 0.31</div>
+              <div class="v">—</div>
+              <div class="sub">downside</div>
             </div>
             <div class="chip">
               <div class="k">Calmar</div>
-              <div class="v">5.06</div>
+              <div class="v">—</div>
               <div class="sub">return / DD</div>
             </div>
             <div class="chip">
               <div class="k">Fills</div>
-              <div class="v">1,284</div>
-              <div class="sub">42.8/min</div>
+              <div class="v">—</div>
+              <div class="sub">own + market</div>
             </div>
             <div class="chip">
-              <div class="k">Win rate</div>
-              <div class="v pos">61.4%</div>
-              <div class="sub">789 / 1,284</div>
+              <div class="k">Round</div>
+              <div class="v">3</div>
+              <div class="sub">Hydrogel · Velvetfruit · VEV</div>
             </div>
           </div>
         </div>
@@ -1495,19 +1467,7 @@ table.tbl {
         <div class="hero-right">
           <div class="chart-head">
             <span class="chart-title">Equity curve</span>
-            <span class="chart-meta">SeaShells · 30k ticks</span>
-            <div class="range-tabs">
-              <button>D0</button>
-              <button>D1</button>
-              <button>D2</button>
-              <button class="on">All</button>
-            </div>
-          </div>
-
-          <div class="legend" style="margin-bottom: 6px">
-            <div class="item"><span class="swatch" style="background: var(--pos)"></span> Pepper v2 (this run)</div>
-            <div class="item"><span class="swatch" style="background: oklch(0.75 0.13 230)"></span> Pepper baseline</div>
-            <div class="item"><span class="swatch dash" style="color: var(--ink-3)"></span> Realized only</div>
+            <span class="chart-meta">SeaShells · Round 3</span>
           </div>
 
           <div class="hero-chart-wrap">
@@ -1578,28 +1538,6 @@ table.tbl {
         </div>
       </section>
 
-      <!-- ============ event timeline ============ -->
-      <section class="card" data-screen-label="events">
-        <div class="card-head">
-          <h3>Event timeline</h3>
-          <span class="meta">63 notable events · 12 missed · 4 spikes</span>
-          <div class="right">
-            <button class="btn btn-ghost"><span class="muted">Filter ·</span> All</button>
-            <button class="btn btn-ghost">Jump to peak ↗</button>
-          </div>
-        </div>
-
-        <div class="events" id="events"></div>
-        <div class="events-axis-labels">
-          <span>0</span>
-          <span>5,000</span>
-          <span>10,000</span>
-          <span>15,000</span>
-          <span>20,000</span>
-          <span>25,000</span>
-          <span>29,900</span>
-        </div>
-      </section>
 
       <!-- ============ products ============ -->
       <section class="card">
@@ -1609,79 +1547,6 @@ table.tbl {
         </div>
         <div class="card-body flush">
           <div id="productCharts" class="product-chart-grid" style="padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px"></div>
-          <div class="products" style="display:none">
-            <!-- product 1 -->
-            <div class="product">
-              <div class="product-head">
-                <span class="product-name">Intarian Pepper Root</span>
-                <span class="product-tag">PEPPER · variable</span>
-                <span class="product-pnl pos">+9,205.10</span>
-              </div>
-              <div class="product-body">
-                <div class="product-stats">
-                  <div class="stat-row"><span class="k">Fills</span><span class="v">912</span></div>
-                  <div class="stat-row"><span class="k">Avg edge / mid</span><span class="v pos">+1.42</span></div>
-                  <div class="stat-row"><span class="k">Win rate</span><span class="v">63.7%</span></div>
-                  <div class="stat-row"><span class="k">Avg position</span><span class="v">+12.4 / 80</span></div>
-                </div>
-                <svg class="product-spark" viewBox="0 0 100 56" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="sp1" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%"   stop-color="oklch(0.80 0.16 148)" stop-opacity="0.40"/>
-                      <stop offset="100%" stop-color="oklch(0.80 0.16 148)" stop-opacity="0"/>
-                    </linearGradient>
-                  </defs>
-                  <path d="M0,42 L8,40 16,38 24,32 32,30 40,24 48,22 56,16 64,18 72,12 80,10 88,8 96,6 100,4 L100,56 L0,56 Z" fill="url(#sp1)"/>
-                  <path d="M0,42 L8,40 16,38 24,32 32,30 40,24 48,22 56,16 64,18 72,12 80,10 88,8 96,6 100,4" fill="none" stroke="oklch(0.80 0.16 148)" stroke-width="1.4"/>
-                </svg>
-              </div>
-              <div class="position-bar">
-                <span>−80</span>
-                <div class="track">
-                  <span class="center"></span>
-                  <span class="fill" style="left: 50%; width: 7.75%;"></span>
-                </div>
-                <span>+80</span>
-                <span style="color: var(--ink-2)">pos +12</span>
-              </div>
-            </div>
-
-            <!-- product 2 -->
-            <div class="product">
-              <div class="product-head">
-                <span class="product-name">Ash-Coated Osmium</span>
-                <span class="product-tag">OSMIUM · fixed-like</span>
-                <span class="product-pnl pos">+3,642.10</span>
-              </div>
-              <div class="product-body">
-                <div class="product-stats">
-                  <div class="stat-row"><span class="k">Fills</span><span class="v">372</span></div>
-                  <div class="stat-row"><span class="k">Avg edge / fair</span><span class="v pos">+0.68</span></div>
-                  <div class="stat-row"><span class="k">Win rate</span><span class="v">58.1%</span></div>
-                  <div class="stat-row"><span class="k">Avg position</span><span class="v neg">−4.2 / 80</span></div>
-                </div>
-                <svg class="product-spark" viewBox="0 0 100 56" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="sp2" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%"   stop-color="oklch(0.75 0.13 230)" stop-opacity="0.40"/>
-                      <stop offset="100%" stop-color="oklch(0.75 0.13 230)" stop-opacity="0"/>
-                    </linearGradient>
-                  </defs>
-                  <path d="M0,38 L10,36 18,40 26,34 34,38 42,30 50,32 58,28 66,30 74,22 82,24 90,18 98,16 100,18 L100,56 L0,56 Z" fill="url(#sp2)"/>
-                  <path d="M0,38 L10,36 18,40 26,34 34,38 42,30 50,32 58,28 66,30 74,22 82,24 90,18 98,16" fill="none" stroke="oklch(0.75 0.13 230)" stroke-width="1.4"/>
-                </svg>
-              </div>
-              <div class="position-bar">
-                <span>−80</span>
-                <div class="track">
-                  <span class="center"></span>
-                  <span class="fill" style="left: 47.4%; width: 2.6%;"></span>
-                </div>
-                <span>+80</span>
-                <span style="color: var(--ink-2)">pos −4</span>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -1689,11 +1554,7 @@ table.tbl {
       <section class="card">
         <div class="card-head">
           <h3>Recent fills</h3>
-          <span class="meta">last 12 of 1,284</span>
-          <div class="right">
-            <button class="btn btn-ghost">Filters</button>
-            <button class="btn">Export CSV</button>
-          </div>
+          <span class="meta">populated after run</span>
         </div>
         <div class="card-body flush">
           <div class="table-wrap">
@@ -1718,7 +1579,7 @@ table.tbl {
       </section>
 
       <div class="footer-note">
-        Backtest engine · Pyodide 0.27.5 · matched mode "worse" · 1.4M ticks across 3 days · synthetic fixture for design preview
+        Backtest engine · Pyodide 0.27.5 · IMC Prosperity Round 3
       </div>
 
       </div><!-- /overview -->
@@ -1947,157 +1808,11 @@ table.tbl {
       <!-- ============ COMPARE ============ -->
       <div class="page-panel" data-panel="compare" data-tab-panel="compare">
 
-        <!-- runs row -->
+        <!-- pinned runs reference -->
         <section class="card">
           <div class="card-head">
-            <h3>Runs in comparison</h3>
-            <span class="meta">3 pinned · 1 current</span>
-            <div class="right"><button class="btn">+ Pin current</button></div>
-          </div>
-          <div class="card-body flush">
-            <div class="runs-row">
-              <div class="run-cell">
-                <span class="run-color" style="background: oklch(0.80 0.16 148);"></span>
-                <span class="label">Current · today 14:22</span>
-                <span class="name">Pepper v2</span>
-                <span class="pnl-big pos">+12,847.20</span>
-                <div class="stat-line">
-                  <span><b>Sharpe</b> 2.41</span>
-                  <span><b>DD</b> −612</span>
-                  <span><b>Fills</b> 1,284</span>
-                </div>
-              </div>
-              <div class="run-cell">
-                <span class="run-color" style="background: oklch(0.75 0.13 230);"></span>
-                <span class="label">Pinned · 2d ago</span>
-                <span class="name">Pepper baseline</span>
-                <span class="pnl-big pos">+9,434.70</span>
-                <div class="stat-line">
-                  <span><b>Sharpe</b> 1.86</span>
-                  <span><b>DD</b> −820</span>
-                  <span><b>Fills</b> 1,141</span>
-                </div>
-              </div>
-              <div class="run-cell">
-                <span class="run-color" style="background: oklch(0.78 0.13 60);"></span>
-                <span class="label">Pinned · 4d ago</span>
-                <span class="name">Osmium-only edge</span>
-                <span class="pnl-big pos">+3,402.00</span>
-                <div class="stat-line">
-                  <span><b>Sharpe</b> 1.12</span>
-                  <span><b>DD</b> −410</span>
-                  <span><b>Fills</b> 388</span>
-                </div>
-              </div>
-              <div class="run-cell">
-                <span class="run-color" style="background: oklch(0.72 0.16 0);"></span>
-                <span class="label">Pinned · 5d ago</span>
-                <span class="name">Aggressive matching</span>
-                <span class="pnl-big neg">−1,118.30</span>
-                <div class="stat-line">
-                  <span><b>Sharpe</b> −0.44</span>
-                  <span><b>DD</b> −2,210</span>
-                  <span><b>Fills</b> 2,401</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- overlay equity chart -->
-        <section class="card">
-          <div class="card-head">
-            <h3>Equity curve · all runs</h3>
-            <span class="meta">SeaShells · 30k ticks</span>
-            <div class="right">
-              <div class="range-tabs">
-                <button>D0</button><button>D1</button><button>D2</button><button class="on">All</button>
-              </div>
-            </div>
-          </div>
-          <div class="chart-pane chart-pane-tall">
-            <svg width="100%" height="100%" viewBox="0 0 1200 320" preserveAspectRatio="none">
-              <defs>
-                <pattern id="cgrid" width="100" height="80" patternUnits="userSpaceOnUse">
-                  <path d="M100 0 L0 0 0 80" fill="none" stroke="oklch(1 0 0 / 0.04)" stroke-width="1"/>
-                </pattern>
-              </defs>
-              <rect width="1200" height="280" fill="url(#cgrid)"/>
-              <line x1="0" y1="220" x2="1200" y2="220" stroke="oklch(1 0 0 / 0.10)" stroke-dasharray="2 4"/>
-              <!-- baseline -->
-              <path d="M0,220 C150,216 300,200 450,182 600,164 750,148 900,128 1050,112 1200,98"
-                    fill="none" stroke="oklch(0.75 0.13 230)" stroke-width="1.6"/>
-              <!-- osmium-only -->
-              <path d="M0,220 C200,218 400,212 600,200 800,190 1000,182 1200,176"
-                    fill="none" stroke="oklch(0.78 0.13 60)" stroke-width="1.6"/>
-              <!-- aggressive -->
-              <path d="M0,220 C150,224 300,232 450,250 600,260 750,254 900,248 1050,254 1200,260"
-                    fill="none" stroke="oklch(0.72 0.16 0)" stroke-width="1.6"/>
-              <!-- current -->
-              <path d="M0,220 C100,212 200,200 300,180 400,158 500,138 600,124 700,108 800,90 900,72 1000,54 1100,38 1200,22"
-                    fill="none" stroke="oklch(0.80 0.16 148)" stroke-width="2.2"/>
-              <g font-family="JetBrains Mono" font-size="10" fill="oklch(0.55 0.008 80)" text-anchor="end">
-                <text x="1196" y="14">+15k</text>
-                <text x="1196" y="120">+8k</text>
-                <text x="1196" y="220">0</text>
-              </g>
-            </svg>
-          </div>
-        </section>
-
-        <!-- comparison table -->
-        <section class="card">
-          <div class="card-head">
-            <h3>Metrics matrix</h3>
-            <span class="meta">all metrics · normalized to current</span>
-          </div>
-          <div class="card-body flush">
-            <div class="table-wrap">
-              <table class="tbl">
-                <thead>
-                  <tr>
-                    <th>#</th><th>Run</th><th class="num">Final P&L</th>
-                    <th class="num">Sharpe</th><th class="num">Sortino</th><th class="num">Max DD</th>
-                    <th class="num">Calmar</th><th class="num">Fills</th><th class="num">Win %</th>
-                    <th class="num">Δ vs current</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td class="rank">1</td>
-                    <td><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:oklch(0.80 0.16 148);margin-right:8px"></span>Pepper v2 <span style="color:var(--ink-3)">· current</span></td>
-                    <td class="num pos">+12,847.20</td>
-                    <td class="num">2.41</td><td class="num">3.18</td><td class="num neg">−612</td>
-                    <td class="num">5.06</td><td class="num">1,284</td><td class="num">61.4%</td>
-                    <td class="num">—</td>
-                  </tr>
-                  <tr>
-                    <td class="rank">2</td>
-                    <td><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:oklch(0.75 0.13 230);margin-right:8px"></span>Pepper baseline</td>
-                    <td class="num pos">+9,434.70</td>
-                    <td class="num">1.86</td><td class="num">2.40</td><td class="num neg">−820</td>
-                    <td class="num">3.84</td><td class="num">1,141</td><td class="num">58.2%</td>
-                    <td class="num delta-neg">−3,412.50</td>
-                  </tr>
-                  <tr>
-                    <td class="rank">3</td>
-                    <td><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:oklch(0.78 0.13 60);margin-right:8px"></span>Osmium-only edge</td>
-                    <td class="num pos">+3,402.00</td>
-                    <td class="num">1.12</td><td class="num">1.61</td><td class="num neg">−410</td>
-                    <td class="num">2.77</td><td class="num">388</td><td class="num">63.9%</td>
-                    <td class="num delta-neg">−9,445.20</td>
-                  </tr>
-                  <tr>
-                    <td class="rank">4</td>
-                    <td><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:oklch(0.72 0.16 0);margin-right:8px"></span>Aggressive matching</td>
-                    <td class="num neg">−1,118.30</td>
-                    <td class="num">−0.44</td><td class="num">−0.31</td><td class="num neg">−2,210</td>
-                    <td class="num">−0.21</td><td class="num">2,401</td><td class="num">49.8%</td>
-                    <td class="num delta-neg">−13,965.50</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <h3>Saved runs</h3>
+            <span class="meta">manage from sidebar · pinned runs auto-overlay on the portfolio chart</span>
           </div>
         </section>
 
@@ -2114,7 +1829,7 @@ table.tbl {
             </div>
             <div class="filter-group" style="flex:1; min-width: 280px;">
               <span class="filter-label">Formula</span>
-              <input id="syntheticFormula" class="input" type="text" style="font-family: 'JetBrains Mono', monospace;" placeholder="e.g. INTARIAN_PEPPER_ROOT - ASH_COATED_OSMIUM" />
+              <input id="syntheticFormula" class="input" type="text" style="font-family: 'JetBrains Mono', monospace;" placeholder="e.g. HYDROGEL_PACK - VELVETFRUIT_EXTRACT" />
             </div>
           </div>
           <div class="chart-pane">
@@ -2127,87 +1842,13 @@ table.tbl {
       <!-- ============ NOTES ============ -->
       <div class="page-panel" data-panel="notes" data-tab-panel="notes">
 
-        <section class="card" style="overflow: hidden;">
+        <section class="card">
           <div class="card-head">
             <h3>Lab notes</h3>
-            <span class="meta">4 entries · Round 3</span>
-            <div class="right">
-              <button class="btn btn-ghost">Filter: all</button>
-              <button class="btn">+ New entry</button>
-            </div>
+            <span class="meta">Round 3 — Hydrogel · Velvetfruit · VEV options</span>
           </div>
-          <div class="notes-layout">
-            <div class="notes-list">
-              <div class="notes-list-item on">
-                <span class="nt">Pepper v2 — narrowing the spread paid off</span>
-                <span class="nd">Apr 24 · 14:22 · Pepper v2</span>
-                <span class="ne">Tightened spread to 2 ticks during low-vol windows. Edge/mid +1.42…</span>
-              </div>
-              <div class="notes-list-item">
-                <span class="nt">Osmium fixed-like regime check</span>
-                <span class="nd">Apr 23 · 09:10 · Osmium-only</span>
-                <span class="ne">Detector flips between fixed and variable above σ 0.6. Worth a guard…</span>
-              </div>
-              <div class="notes-list-item">
-                <span class="nt">Aggressive matching post-mortem</span>
-                <span class="nd">Apr 21 · 17:48 · Aggressive</span>
-                <span class="ne">2,401 fills, −1.1k. Adverse selection in burst windows is brutal…</span>
-              </div>
-              <div class="notes-list-item">
-                <span class="nt">Round 2 reflection — what carried over</span>
-                <span class="nd">Apr 18 · 11:30 · meta</span>
-                <span class="ne">Inventory skew is the biggest unlock. Don't chase fills past 60%…</span>
-              </div>
-            </div>
-            <article class="notes-doc">
-              <h1>Pepper v2 — narrowing the spread paid off</h1>
-              <div class="doc-meta">
-                <span>Apr 24, 2026</span>
-                <span class="tag">Pepper v2</span>
-                <span class="tag">+12,847 SH</span>
-                <span class="tag">matched · worse</span>
-              </div>
-
-              <p>The thesis going in: the baseline strategy was too defensive in low-vol windows. The book stays tight (spread ≤ 2) for long stretches and we were quoting at <code>edge_target = 3</code>, which kept us out of the queue. Dropping the target to <code>2.0</code> when <code>vol_window &lt; 0.6</code> gave us roughly twice the fill rate without any meaningful uptick in adverse selection.</p>
-
-              <h2>What changed</h2>
-              <ul>
-                <li>Adaptive <code>edge_target</code> on PEPPER — 2.0 in calm regimes, 3.0 in busy ones.</li>
-                <li>Inventory skew strengthened from 0.10 → 0.18 — pushes quotes off-center harder when we're long/short.</li>
-                <li>Removed the 50-tick cooldown after a partial fill. It was costing us follow-on fills inside short bursts.</li>
-              </ul>
-
-              <blockquote>
-                Lesson from Round 1 reflection: don't optimize for hit rate, optimize for filled-edge. Fewer fills at higher edge beats more fills at thin edge every time.
-              </blockquote>
-
-              <h2>Results</h2>
-              <p>Final P&L came in at <code>+12,847.20</code> SeaShells across 30k ticks — up <code>+3,412.50</code> vs. the baseline. Sharpe lifted from 1.86 → <code>2.41</code>, and drawdown actually shrank a bit (−820 → −612), which surprised me. The skew change is doing more work than I expected.</p>
-
-              <div class="doc-figure">
-                <svg width="100%" height="120" viewBox="0 0 600 120" preserveAspectRatio="none">
-                  <line x1="0" y1="100" x2="600" y2="100" stroke="oklch(1 0 0 / 0.10)" stroke-dasharray="2 4"/>
-                  <path d="M0,100 C100,92 200,84 300,68 400,54 500,32 600,16" fill="none" stroke="oklch(0.80 0.16 148)" stroke-width="1.8"/>
-                  <path d="M0,100 C100,96 200,90 300,82 400,72 500,60 600,48" fill="none" stroke="oklch(0.75 0.13 230)" stroke-width="1.4"/>
-                </svg>
-                <div class="fig-cap">Fig. 1 — Pepper v2 (green) vs. Pepper baseline (blue), full 30k ticks.</div>
-              </div>
-
-              <h2>Open questions</h2>
-              <div class="callout">
-                <div class="ic">?</div>
-                <div>
-                  Sortino jumped from 2.40 to <code>3.18</code>, but I want to rule out that this is just a quirk of the calm middle of Day 1. <strong>Next:</strong> bootstrap the per-day metrics and see how stable this is across resamples.
-                </div>
-              </div>
-
-              <h2>Next steps</h2>
-              <ul>
-                <li>Port the adaptive <code>edge_target</code> idea to Osmium — but its regime detector needs a guard above σ 0.6 (see Apr 23 note).</li>
-                <li>Run 5 perturbations of the inventory_skew param: 0.12, 0.15, 0.18, 0.22, 0.26.</li>
-                <li>Wire <code>vol_window</code> into the trader_data overlay so I can eyeball regime flips on the chart.</li>
-              </ul>
-            </article>
+          <div class="card-body">
+            <p style="color:var(--ink-2)">Notes panel — wire up persistent strategy notes here when needed. The dashboard contract for this tab is intentionally empty.</p>
           </div>
         </section>
 
@@ -2263,10 +1904,20 @@ table.tbl {
       item.classList.add('on');
     });
   });
-  // pill toggles
-  document.querySelectorAll('.pill-toggle').forEach(p => {
-    p.addEventListener('click', () => p.classList.toggle('on'));
+  // pill-toggles wrap a checkbox; sync .on class to the checkbox state
+  // (don't add a click handler — clicking the <label> already toggles the input)
+  document.querySelectorAll('.pill-toggle input[type="checkbox"]').forEach(cb => {
+    const sync = () => cb.closest('.pill-toggle').classList.toggle('on', cb.checked);
+    sync();
+    cb.addEventListener('change', sync);
   });
+
+  // rail "Run simulation" CTA mirrors the main run button
+  const railCta = document.querySelector('.rail-cta');
+  const runBtn = document.getElementById('runButton');
+  if (railCta && runBtn) {
+    railCta.addEventListener('click', () => runBtn.click());
+  }
 })();
 </script>
 </body>
