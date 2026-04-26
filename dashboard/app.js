@@ -1622,7 +1622,8 @@ let lastFileModified = 0;
 
 function initWorker() {
   if (backtestWorker) return;
-  backtestWorker = new Worker("worker.js");
+  // Add cache-busting to force reload of corrected worker.js
+  backtestWorker = new Worker(`worker.js?v=${Date.now()}`);
   backtestWorker.onmessage = (e) => {
     const { type, completed, total, result, error } = e.data;
     if (type === "progress") setRunProgress(completed, total);
