@@ -2808,8 +2808,16 @@ function bindEvents() {
   tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
       const target = button.getAttribute("data-tab-target");
-      tabButtons.forEach((btn) => btn.classList.toggle("active", btn === button));
-      tabPanels.forEach((panel) => panel.classList.toggle("overview-hidden", panel.getAttribute("data-tab-panel") !== target));
+      tabButtons.forEach((btn) => {
+        const isActive = btn === button;
+        btn.classList.toggle("active", isActive);
+        btn.classList.toggle("on", isActive);
+      });
+      tabPanels.forEach((panel) => {
+        const isTarget = panel.getAttribute("data-tab-panel") === target;
+        panel.classList.toggle("overview-hidden", !isTarget);
+        panel.classList.toggle("on", isTarget);
+      });
       window.dispatchEvent(new Event("resize"));
     });
   });
