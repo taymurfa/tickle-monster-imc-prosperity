@@ -9,8 +9,8 @@ const ROUND_CONFIGS = {
       "trades_round_1_day_-1.csv",
       "trades_round_1_day_0.csv",
     ],
-    labels: { emerald: "Amethysts", tomato: "Starfish" },
-    overviewProducts: ["AMETHYSTS", "STARFISH"],
+    labels: { emerald: "Osmium", tomato: "Pepper Root" },
+    overviewProducts: ["ASH_COATED_OSMIUM", "INTARIAN_PEPPER_ROOT"],
     voucherStrikes: {},
   },
   "2": {
@@ -23,8 +23,8 @@ const ROUND_CONFIGS = {
       "trades_round_2_day_0.csv",
       "trades_round_2_day_1.csv",
     ],
-    labels: { emerald: "Osmium", tomato: "Root" },
-    overviewProducts: ["ASH_COATED_OSMIUM", "INTARIAN_PEPPER_ROOT", "ORCHIDS"],
+    labels: { emerald: "Osmium", tomato: "Pepper Root" },
+    overviewProducts: ["ASH_COATED_OSMIUM", "INTARIAN_PEPPER_ROOT"],
     voucherStrikes: {},
   },
   "3": {
