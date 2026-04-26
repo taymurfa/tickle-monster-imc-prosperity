@@ -2176,31 +2176,7 @@ function safeExportName(value) {
     .slice(0, 80) || "prosperity";
 }
 
-async function saveWorkbookFile(workbook, filename) {
-  const XLSX = window.XLSX;
-  const bytes = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([bytes], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-
-  if (window.showSaveFilePicker) {
-    const handle = await window.showSaveFilePicker({
-      suggestedName: filename,
-      types: [
-        {
-          description: "Excel workbook",
-          accept: {
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-          },
-        },
-      ],
-    });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return { mode: "picker", name: handle.name || filename };
-  }
-
+function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -2210,7 +2186,44 @@ async function saveWorkbookFile(workbook, filename) {
   return { mode: "download", name: filename };
 }
 
-async function exportExcel() {
+async function saveWorkbookFile(workbook, filename, options = {}) {
+  const { preferPicker = true } = options;
+  const XLSX = window.XLSX;
+  const bytes = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([bytes], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  if (preferPicker && window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [
+          {
+            description: "Excel workbook",
+            accept: {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+            },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return { mode: "picker", name: handle.name || filename };
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw error;
+      }
+      return downloadBlob(blob, filename);
+    }
+  }
+
+  return downloadBlob(blob, filename);
+}
+
+async function exportExcel(options = {}) {
+  const { preferPicker = true } = options;
   if (!lastResult || !lastResult.points || lastResult.points.length === 0) {
     setStatus("Run a simulation before exporting.", true);
     return;
@@ -2912,7 +2925,7 @@ async function exportExcel() {
     // ─────────────────────────────────────────────────────────────────────────
     const sourceName = result.source?.filename || strategyName;
     const filename = `${safeExportName(sourceName)}_output.xlsx`;
-    const saved = await saveWorkbookFile(wb, filename);
+    const saved = await saveWorkbookFile(wb, filename, { preferPicker });
     const sheetCount = wb.SheetNames.length;
     const action = saved.mode === "picker" ? "Saved" : "Downloaded";
     if (dom.exportStatus) dom.exportStatus.textContent = `${action} (${sheetCount} tabs) → ${saved.name}`;
@@ -3007,7 +3020,7 @@ async function runSimulation() {
     applyResult(payload);
     updateSyntheticRunOptions();
     setStatus(`Simulation complete (${payload.fills.length} fills).`);
-    if (dom.exportExcel?.checked) exportExcel();
+    if (dom.exportExcel?.checked) exportExcel({ preferPicker: false });
   } catch (error) {
     console.error(error);
     setStatus(error?.message || String(error), true);
@@ -3049,18 +3062,72 @@ function splitLogSections(text) {
   return sections;
 }
 
-function parseSemicolonTable(text) {
+function splitDelimitedLine(line, delimiter) {
+  const cells = [];
+  let current = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (quoted && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (ch === delimiter && !quoted) {
+      cells.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  cells.push(current);
+  return cells;
+}
+
+function delimiterCount(line, delimiter) {
+  return splitDelimitedLine(line, delimiter).length - 1;
+}
+
+function normalizeHeader(header) {
+  return String(header || "")
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function parseDelimitedTable(text) {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const headerIndex = lines.findIndex((line) => line.includes(";") && line.includes("timestamp"));
+
+  const delimiters = [";", ",", "\t"];
+  let headerIndex = -1;
+  let delimiter = ";";
+  let headers = [];
+  for (let i = 0; i < lines.length; i++) {
+    for (const candidate of delimiters) {
+      if (delimiterCount(lines[i], candidate) < 2) continue;
+      const parsedHeaders = splitDelimitedLine(lines[i], candidate).map(normalizeHeader);
+      if (parsedHeaders.includes("timestamp") && (parsedHeaders.includes("product") || parsedHeaders.includes("symbol"))) {
+        headerIndex = i;
+        delimiter = candidate;
+        headers = parsedHeaders;
+        break;
+      }
+    }
+    if (headerIndex >= 0) break;
+  }
   if (headerIndex < 0) return [];
-  const headers = lines[headerIndex].split(";").map((h) => h.trim());
+
   const rows = [];
   for (const line of lines.slice(headerIndex + 1)) {
-    if (!line.includes(";")) break;
-    const cells = line.split(";");
+    if (delimiterCount(line, delimiter) < 1) break;
+    const cells = splitDelimitedLine(line, delimiter);
     if (cells.length < headers.length) continue;
     const row = {};
     headers.forEach((header, idx) => {
@@ -3069,6 +3136,10 @@ function parseSemicolonTable(text) {
     rows.push(row);
   }
   return rows;
+}
+
+function parseSemicolonTable(text) {
+  return parseDelimitedTable(text);
 }
 
 function toNumber(value) {
