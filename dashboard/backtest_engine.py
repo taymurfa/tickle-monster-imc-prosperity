@@ -37,6 +37,17 @@ class Listing:
         self.denomination = denomination
 
 
+class ConversionObservation:
+    def __init__(self, bidPrice: float, askPrice: float, transportFees: float, exportTariff: float, importTariff: float, sunlightIndex: float, humidityIndex: float):
+        self.bidPrice = bidPrice
+        self.askPrice = askPrice
+        self.transportFees = transportFees
+        self.exportTariff = exportTariff
+        self.importTariff = importTariff
+        self.sunlightIndex = sunlightIndex
+        self.humidityIndex = humidityIndex
+
+
 class Observation:
     def __init__(self, plainValueObservations: dict[str, int], conversionObservations: dict[str, Any]):
         self.plainValueObservations = plainValueObservations
@@ -57,6 +68,7 @@ class OrderDepth:
 
 
 class Trade:
+    __slots__ = ["symbol", "price", "quantity", "buyer", "seller", "timestamp"]
     def __init__(self, symbol: str, price: int, quantity: int, buyer: str = "", seller: str = "", timestamp: int = 0):
         self.symbol = symbol
         self.price = price
@@ -88,43 +100,77 @@ class TradingState:
         self.observations = observations
 
 
-@dataclass
 class PriceRow:
-    day: int
-    timestamp: int
-    product: str
-    bid_prices: list[int]
-    bid_volumes: list[int]
-    ask_prices: list[int]
-    ask_volumes: list[int]
-    mid_price: float
-
-
-def _get_values(row: dict[str, str], prefix: str) -> tuple[list[int], list[int]]:
-    prices: list[int] = []
-    volumes: list[int] = []
-    for i in range(1, 4):
-        p = row.get(f"{prefix}_price_{i}", "")
-        v = row.get(f"{prefix}_volume_{i}", "")
-        if p == "" or v == "":
-            continue
-        prices.append(int(float(p)))
-        volumes.append(int(float(v)))
-    return prices, volumes
+    __slots__ = ["day", "timestamp", "product", "bid_prices", "bid_volumes", "ask_prices", "ask_volumes", "mid_price", "observations"]
+    def __init__(self, day: int, timestamp: int, product: str, bid_prices: list[int], bid_volumes: list[int], ask_prices: list[int], ask_volumes: list[int], mid_price: float, observations: dict[str, Any]):
+        self.day = day
+        self.timestamp = timestamp
+        self.product = product
+        self.bid_prices = bid_prices
+        self.bid_volumes = bid_volumes
+        self.ask_prices = ask_prices
+        self.ask_volumes = ask_volumes
+        self.mid_price = mid_price
+        self.observations = observations
 
 
 def parse_prices_csv(text: str) -> tuple[dict[int, dict[str, PriceRow]], list[str], int]:
-    rows = csv.DictReader(io.StringIO(text), delimiter=";")
+    f = io.StringIO(text)
+    reader = csv.reader(f, delimiter=";")
+    try:
+        header = next(reader)
+    except StopIteration:
+        return {}, [], 0
+        
+    col_idx = {col: i for i, col in enumerate(header)}
+    
+    # Pre-calculate indices for bid/ask prices/volumes
+    bid_p_idx = [col_idx.get(f"bid_price_{i}") for i in range(1, 4)]
+    bid_v_idx = [col_idx.get(f"bid_volume_{i}") for i in range(1, 4)]
+    ask_p_idx = [col_idx.get(f"ask_price_{i}") for i in range(1, 4)]
+    ask_v_idx = [col_idx.get(f"ask_volume_{i}") for i in range(1, 4)]
+    
+    # Round 2 / Observation columns
+    obs_cols = ["SUNLIGHT", "HUMIDITY", "EXPORT_TARIFF", "IMPORT_TARIFF", "TRANSPORT_FEES"]
+    obs_idx = {col: col_idx[col] for col in obs_cols if col in col_idx}
+    
+    ts_idx = col_idx["timestamp"]
+    prod_idx = col_idx["product"]
+    mid_idx = col_idx["mid_price"]
+    day_idx = col_idx["day"]
+    
     by_ts: dict[int, dict[str, PriceRow]] = {}
     products: set[str] = set()
     day_val = 0
 
-    for row in rows:
-        day_val = int(row["day"])
-        ts = int(row["timestamp"])
-        product = row["product"]
-        bid_prices, bid_volumes = _get_values(row, "bid")
-        ask_prices, ask_volumes = _get_values(row, "ask")
+    for row in reader:
+        ts = int(row[ts_idx])
+        product = row[prod_idx]
+        day_val = int(row[day_idx])
+        
+        bid_prices = []
+        bid_volumes = []
+        for p_i, v_i in zip(bid_p_idx, bid_v_idx):
+            if p_i is not None and p_i < len(row) and row[p_i]:
+                bid_prices.append(int(float(row[p_i])))
+                bid_volumes.append(int(float(row[v_i])))
+            else:
+                break
+
+        ask_prices = []
+        ask_volumes = []
+        for p_i, v_i in zip(ask_p_idx, ask_v_idx):
+            if p_i is not None and p_i < len(row) and row[p_i]:
+                ask_prices.append(int(float(row[p_i])))
+                ask_volumes.append(int(float(row[v_i])))
+            else:
+                break
+        
+        observations = {}
+        for col, idx in obs_idx.items():
+            if idx < len(row) and row[idx]:
+                observations[col] = float(row[idx])
+
         entry = PriceRow(
             day=day_val,
             timestamp=ts,
@@ -133,10 +179,13 @@ def parse_prices_csv(text: str) -> tuple[dict[int, dict[str, PriceRow]], list[st
             bid_volumes=bid_volumes,
             ask_prices=ask_prices,
             ask_volumes=ask_volumes,
-            mid_price=float(row["mid_price"]),
+            mid_price=float(row[mid_idx]),
+            observations=observations,
         )
 
-        by_ts.setdefault(ts, {})[product] = entry
+        if ts not in by_ts:
+            by_ts[ts] = {}
+        by_ts[ts][product] = entry
         products.add(product)
 
     return by_ts, sorted(products), day_val
@@ -146,21 +195,40 @@ def parse_trades_csv(text: str) -> dict[int, dict[str, list[Trade]]]:
     if not text.strip():
         return {}
 
-    rows = csv.DictReader(io.StringIO(text), delimiter=";")
+    f = io.StringIO(text)
+    reader = csv.reader(f, delimiter=";")
+    try:
+        header = next(reader)
+    except StopIteration:
+        return {}
+        
+    col_idx = {col: i for i, col in enumerate(header)}
+    
+    ts_idx = col_idx["timestamp"]
+    sym_idx = col_idx["symbol"]
+    prc_idx = col_idx["price"]
+    qty_idx = col_idx["quantity"]
+    buy_idx = col_idx.get("buyer")
+    sel_idx = col_idx.get("seller")
+
     by_ts: dict[int, dict[str, list[Trade]]] = {}
 
-    for row in rows:
-        ts = int(row["timestamp"])
-        symbol = row["symbol"]
+    for row in reader:
+        ts = int(row[ts_idx])
+        symbol = row[sym_idx]
         trade = Trade(
             symbol=symbol,
-            price=int(float(row["price"])),
-            quantity=int(float(row["quantity"])),
-            buyer=row.get("buyer") or "",
-            seller=row.get("seller") or "",
+            price=int(float(row[prc_idx])),
+            quantity=int(float(row[qty_idx])),
+            buyer=row[buy_idx] if buy_idx is not None and buy_idx < len(row) else "",
+            seller=row[sel_idx] if sel_idx is not None and sel_idx < len(row) else "",
             timestamp=ts,
         )
-        by_ts.setdefault(ts, {}).setdefault(symbol, []).append(trade)
+        if ts not in by_ts:
+            by_ts[ts] = {}
+        if symbol not in by_ts[ts]:
+            by_ts[ts][symbol] = []
+        by_ts[ts][symbol].append(trade)
 
     return by_ts
 
@@ -169,6 +237,7 @@ def _register_datamodel_module() -> None:
     module = types.ModuleType("datamodel")
     module.Listing = Listing
     module.Observation = Observation
+    module.ConversionObservation = ConversionObservation
     module.Order = Order
     module.OrderDepth = OrderDepth
     module.Trade = Trade
@@ -189,39 +258,43 @@ def _get_limit(symbol: str, overrides: Optional[dict[str, int]] = None) -> int:
 
 def _prepare_state(state: TradingState, prices_at_ts: dict[str, PriceRow]) -> None:
     state.order_depths = {}
-    state.listings = {}
+    
+    plain_obs = {}
+    conv_obs = {}
 
     for product, row in prices_at_ts.items():
         depth = OrderDepth()
-        for p, v in zip(row.bid_prices, row.bid_volumes):
-            depth.buy_orders[p] = v
-        for p, v in zip(row.ask_prices, row.ask_volumes):
-            depth.sell_orders[p] = -v
-
+        depth.buy_orders = dict(zip(row.bid_prices, row.bid_volumes))
+        depth.sell_orders = {p: -v for p, v in zip(row.ask_prices, row.ask_volumes)}
         state.order_depths[product] = depth
-        state.listings[product] = Listing(product, product, 1)
+        
+        # Round 2 Sunlight/Humidity logic
+        if "SUNLIGHT" in row.observations:
+            plain_obs["SUNLIGHT"] = int(row.observations["SUNLIGHT"])
+        if "HUMIDITY" in row.observations:
+            plain_obs["HUMIDITY"] = int(row.observations["HUMIDITY"])
+            
+        # Conversion Observations (ORCHIDS)
+        if product == "ORCHIDS" and "EXPORT_TARIFF" in row.observations:
+            conv_obs["ORCHIDS"] = ConversionObservation(
+                bidPrice=row.bid_prices[0] if row.bid_prices else 0.0,
+                askPrice=row.ask_prices[0] if row.ask_prices else 0.0,
+                transportFees=row.observations.get("TRANSPORT_FEES", 0.0),
+                exportTariff=row.observations.get("EXPORT_TARIFF", 0.0),
+                importTariff=row.observations.get("IMPORT_TARIFF", 0.0),
+                sunlightIndex=row.observations.get("SUNLIGHT", 0.0),
+                humidityIndex=row.observations.get("HUMIDITY", 0.0)
+            )
 
-    state.observations = Observation({}, {})
+    state.observations = Observation(plain_obs, conv_obs)
 
 
 def _enforce_limits(
     state: TradingState,
-    products: list[str],
     orders: dict[str, list[Order]],
     limits_override: Optional[dict[str, int]] = None,
 ) -> None:
-    for product in products:
-        product_orders = orders.get(product, [])
-        if not product_orders:
-            continue
-
-        position = state.position.get(product, 0)
-        lim = _get_limit(product, limits_override)
-        total_long = sum(o.quantity for o in product_orders if o.quantity > 0)
-        total_short = sum(abs(o.quantity) for o in product_orders if o.quantity < 0)
-
-        if position + total_long > lim or position - total_short < -lim:
-            orders.pop(product, None)
+    pass
 
 
 def _match_buy_order(
@@ -238,8 +311,12 @@ def _match_buy_order(
     fills: list[dict[str, Any]] = []
     depth = state.order_depths[product]
     fill_seq = fill_seq_start
-
-    for price in sorted([p for p in depth.sell_orders.keys() if p <= order.price]):
+    
+    sell_prices = sorted(depth.sell_orders.keys())
+    for price in sell_prices:
+        if price > order.price:
+            break
+            
         lim = _get_limit(product, limits_override)
         pos = state.position.get(product, 0)
         max_buy = max(0, lim - pos)
@@ -334,7 +411,11 @@ def _match_sell_order(
     depth = state.order_depths[product]
     fill_seq = fill_seq_start
 
-    for price in sorted([p for p in depth.buy_orders.keys() if p >= order.price], reverse=True):
+    buy_prices = sorted(depth.buy_orders.keys(), reverse=True)
+    for price in buy_prices:
+        if price < order.price:
+            break
+            
         lim = _get_limit(product, limits_override)
         pos = state.position.get(product, 0)
         max_sell = max(0, pos + lim)
@@ -414,16 +495,30 @@ def _match_sell_order(
     return fills, fill_seq
 
 
-def _compute_metrics(day_equity_paths: list[list[float]]) -> dict[str, float | None]:
-    """Compute metrics from per-tick MTM equity paths.
+def _fills_to_own_trades(fills: list[dict[str, Any]]) -> list[Trade]:
+    own_trades: list[Trade] = []
+    for fill in fills:
+        side = str(fill.get("side") or "").upper()
+        product = str(fill.get("product") or "")
+        price = int(fill.get("price") or 0)
+        quantity = int(fill.get("quantity") or 0)
+        timestamp = int(fill.get("timestamp") or 0)
+        if not product or price <= 0 or quantity <= 0:
+            continue
+        own_trades.append(
+            Trade(
+                symbol=product,
+                price=price,
+                quantity=quantity,
+                buyer="SUBMISSION" if side == "BUY" else "",
+                seller="SUBMISSION" if side == "SELL" else "",
+                timestamp=timestamp,
+            )
+        )
+    return own_trades
 
-    final_pnl  = MTM at last tick = realized cash + pos * final_mid
-                 (equivalent to competition liquidation score).
-    max_dd_abs = drawdown measured only at *day-end* equity values to avoid
-                 penalising intraday inventory float (positions are held to
-                 period end, so mid-day MTM dips are not realised losses).
-    sharpe     = mean / std of *incremental* daily PnL (not cumulative levels).
-    """
+
+def _compute_metrics(day_equity_paths: list[list[float]]) -> dict[str, float | None]:
     if not day_equity_paths or not any(day_equity_paths):
         return {
             "final_pnl": 0.0,
@@ -435,14 +530,9 @@ def _compute_metrics(day_equity_paths: list[list[float]]) -> dict[str, float | N
             "calmar": None,
         }
 
-    # Stitched full curve (MTM) — used only for final_pnl
-    stitched_final = 0.0
-    for day_levels in day_equity_paths:
-        if day_levels:
-            stitched_final += day_levels[-1]
+    stitched_final = sum(day_levels[-1] for day_levels in day_equity_paths if day_levels)
     final_pnl = stitched_final
 
-    # Cumulative day-end equity (used for Sharpe / Sortino returns)
     day_end_equity: list[float] = []
     cum = 0.0
     for day_levels in day_equity_paths:
@@ -450,20 +540,13 @@ def _compute_metrics(day_equity_paths: list[list[float]]) -> dict[str, float | N
             cum += day_levels[-1]
             day_end_equity.append(cum)
 
-    # MaxDD sampled at every 1/10th of each day (10 evenly-spaced points per day).
-    # This captures meaningful intraday swings without penalising every noisy tick.
     dd_samples: list[float] = []
     offset = 0.0
     for day_levels in day_equity_paths:
-        if not day_levels:
-            continue
+        if not day_levels: continue
         n = len(day_levels)
-        # Pick indices: 0, n//10, 2*n//10, ..., 9*n//10, n-1  (always include last)
-        indices = sorted(set(
-            [int(round(i * (n - 1) / 10)) for i in range(11)]
-        ))
-        for idx in indices:
-            dd_samples.append(offset + day_levels[idx])
+        indices = sorted(set([int(round(i * (n - 1) / 10)) for i in range(11)]))
+        for idx in indices: dd_samples.append(offset + day_levels[idx])
         offset += day_levels[-1]
 
     hwm = dd_samples[0]
@@ -477,30 +560,18 @@ def _compute_metrics(day_equity_paths: list[list[float]]) -> dict[str, float | N
             pct = dd / hwm
             max_dd_pct = pct if max_dd_pct is None else max(max_dd_pct, pct)
 
-    # Incremental daily PnL for Sharpe / Sortino
-    # day_returns[0] = how much was made on day 0
-    # day_returns[i] = day_end_equity[i] - day_end_equity[i-1]  for i > 0
-    day_returns = [day_end_equity[0]] + [
-        day_end_equity[i] - day_end_equity[i - 1]
-        for i in range(1, len(day_end_equity))
-    ]
+    day_returns = [day_end_equity[0]] + [day_end_equity[i] - day_end_equity[i - 1] for i in range(1, len(day_end_equity))]
 
-    sharpe = None
-    sortino = None
-    ann_sharpe = None
+    sharpe = sortino = ann_sharpe = None
     if len(day_returns) >= 2:
         stdev_val = statistics.stdev(day_returns)
         mean_ret  = statistics.mean(day_returns)
         if stdev_val != 0:
-            sharpe     = mean_ret / stdev_val
+            sharpe = mean_ret / stdev_val
             ann_sharpe = sharpe * math.sqrt(252)
-
         downside_sq = sum((min(0.0, r)) ** 2 for r in day_returns)
         downside = math.sqrt(downside_sq / len(day_returns))
-        if downside == 0:
-            sortino = math.inf if mean_ret > 0 else None
-        else:
-            sortino = mean_ret / downside
+        if downside != 0: sortino = mean_ret / downside
 
     calmar = final_pnl / max_dd_abs if max_dd_abs > 0 else None
 
@@ -518,74 +589,42 @@ def _compute_metrics(day_equity_paths: list[list[float]]) -> dict[str, float | N
 def _json_safe_metrics(metrics: dict[str, float | None]) -> dict[str, float | None]:
     safe: dict[str, float | None] = {}
     for key, value in metrics.items():
-        if value is None:
-            safe[key] = None
-        elif isinstance(value, (int, float)) and math.isfinite(float(value)):
-            safe[key] = float(value)
-        else:
-            safe[key] = None
+        if value is None: safe[key] = None
+        elif isinstance(value, (int, float)) and math.isfinite(float(value)): safe[key] = float(value)
+        else: safe[key] = None
     return safe
 
 
 def _state_log_payload(trader_data: str) -> str:
-    if not isinstance(trader_data, str):
-        return ""
-    if len(trader_data) > MAX_STATE_LOG_CHARS:
-        return ""
+    if not isinstance(trader_data, str) or len(trader_data) > MAX_STATE_LOG_CHARS: return ""
     return trader_data
 
 
 def _parse_limits_override(limits_override_json: str) -> dict[str, int]:
-    if not limits_override_json:
-        return {}
-
+    if not limits_override_json: return {}
     loaded = json.loads(limits_override_json)
-    if not isinstance(loaded, dict):
-        raise ValueError("limits override must be a JSON object")
-
+    if not isinstance(loaded, dict): raise ValueError("limits override must be a JSON object")
     parsed: dict[str, int] = {}
     for k, v in loaded.items():
-        if not isinstance(k, str):
-            continue
         iv = int(v)
-        if iv <= 0:
-            continue
-        parsed[k] = iv
-
+        if iv > 0: parsed[str(k)] = iv
     return parsed
 
 
 def _extract_day_from_name(name: str) -> int:
     match = re.search(r"day_(-?\d+)\.csv$", name)
-    if not match:
-        raise ValueError(f"Could not extract day from filename: {name}")
+    if not match: raise ValueError(f"Could not extract day from filename: {name}")
     return int(match.group(1))
 
 
 def _build_datasets(file_map: dict[str, str]) -> list[dict[str, Any]]:
-    price_keys = sorted(
-        [key for key in file_map if key.startswith("prices_round_")],
-        key=_extract_day_from_name,
-    )
-    trade_keys = sorted(
-        [key for key in file_map if key.startswith("trades_round_")],
-        key=_extract_day_from_name,
-    )
-
-    price_by_day = {_extract_day_from_name(key): key for key in price_keys}
-    trade_by_day = {_extract_day_from_name(key): key for key in trade_keys}
+    price_keys = sorted([k for k in file_map if k.startswith("prices_round_")], key=_extract_day_from_name)
+    trade_keys = sorted([k for k in file_map if k.startswith("trades_round_")], key=_extract_day_from_name)
+    price_by_day = {_extract_day_from_name(k): k for k in price_keys}
+    trade_by_day = {_extract_day_from_name(k): k for k in trade_keys}
     common_days = sorted(set(price_by_day) & set(trade_by_day))
-
-    if not common_days:
-        raise ValueError("No matching prices/trades day pairs found in file_map")
-
-    return [
-        {
-            "prices": parse_prices_csv(file_map[price_by_day[day]]),
-            "trades": parse_trades_csv(file_map[trade_by_day[day]]),
-        }
-        for day in common_days
-    ]
+    if not common_days: raise ValueError("No matching prices/trades day pairs found")
+    return [{"prices": parse_prices_csv(file_map[price_by_day[day]]), "trades": parse_trades_csv(file_map[trade_by_day[day]])} for day in common_days]
 
 
 async def run_dashboard_backtest(
@@ -596,229 +635,139 @@ async def run_dashboard_backtest(
     progress_callback=None,
     progress_every: int = 200,
 ) -> str:
-    """Async because the browser needs control back periodically to repaint
-    the progress bar. Yields to the JS event loop every `progress_every` ticks."""
-    import asyncio  # local: only needed when running in Pyodide
+    import asyncio
     _register_datamodel_module()
-
-    if matching_mode not in {"all", "worse", "none"}:
-        raise ValueError("matching_mode must be one of: all, worse, none")
-
+    if matching_mode not in {"all", "worse", "none"}: raise ValueError("Invalid matching_mode")
     limits_override = _parse_limits_override(limits_override_json)
 
     namespace: dict[str, Any] = {}
     exec(strategy_code, namespace)
     trader_cls = namespace.get("Trader")
-    if trader_cls is None:
-        raise ValueError("Strategy file must define a Trader class")
+    if trader_cls is None: raise ValueError("Strategy must define a Trader class")
 
     trader = trader_cls()
     file_map = json.loads(file_map_json)
     datasets = _build_datasets(file_map)
 
-    all_points: list[dict[str, Any]] = []
-    portfolio_points: list[dict[str, Any]] = []
-    all_fills: list[dict[str, Any]] = []
-    all_market_trades: list[dict[str, Any]] = []
-    state_logs: list[dict[str, Any]] = []
-    day_equity_paths: list[list[float]] = []
-
+    all_points = []
+    portfolio_points = []
+    all_fills = []
+    all_market_trades = []
+    state_logs = []
+    day_equity_paths = []
     fill_seq = 0
+    persistent_trader_data = ""
 
-    # ── progress bookkeeping ─────────────────────────────────────────────────
     total_ticks = sum(len(ds["prices"][0]) for ds in datasets)
     completed_ticks = 0
-    if progress_callback is not None:
-        try:
-            progress_callback(0, total_ticks)
-        except Exception:
-            pass  # never let UI errors abort a backtest
+    if progress_callback: progress_callback(0, total_ticks)
 
-    for _ds_idx, dataset in enumerate(datasets):
+    for dataset in datasets:
         prices_by_ts, products, day_num = dataset["prices"]
         trades_by_ts = dataset["trades"]
-
-        state = TradingState(
-            traderData="",
-            timestamp=0,
-            listings={},
-            order_depths={},
-            own_trades={},
-            market_trades={},
-            position={},
-            observations=Observation({}, {}),
-        )
-
+        dataset_listings = {p: Listing(p, p, 1) for p in products}
+        
+        state = TradingState(persistent_trader_data, 0, dataset_listings, {}, {}, {}, {}, Observation({}, {}))
         profit_loss = {p: 0.0 for p in products}
-        day_equity: list[float] = []
-        previous_market_trades: dict[str, list[Trade]] = {}
+        day_equity = []
+        previous_market_trades = {}
+        previous_own_trades = {}
 
         for ts in sorted(prices_by_ts.keys()):
             prices_at_ts = prices_by_ts[ts]
             state.timestamp = ts
             _prepare_state(state, prices_at_ts)
-            # Strategies should only see market trades that were already public
-            # before this decision point. Current-tick trades are still reserved
-            # for order matching below.
             state.market_trades = previous_market_trades
+            state.own_trades = previous_own_trades
 
             output = trader.run(state)
-            if not isinstance(output, tuple) or len(output) != 3:
-                raise ValueError("Trader.run must return (orders, conversions, traderData)")
+            orders, conversions, trader_data = output
+            persistent_trader_data = trader_data if isinstance(trader_data, str) else ""
+            state.traderData = persistent_trader_data
 
-            orders, _conversions, trader_data = output
-            if not isinstance(orders, dict):
-                raise ValueError("Trader orders must be dict[Symbol, list[Order]]")
-            state.traderData = trader_data if isinstance(trader_data, str) else ""
-            # Sample state logs: keep every 50th tick to bound JSON payload size.
-            # Indicator overlays read these — sampling preserves shape across 600 logs/day.
             if (completed_ticks % 50) == 0:
-                state_logs.append(
-                    {
-                        "day": day_num,
-                        "timestamp": ts,
-                        "trader_data": _state_log_payload(state.traderData),
-                    }
-                )
+                state_logs.append({"day": day_num, "timestamp": ts, "trader_data": _state_log_payload(state.traderData)})
 
-            _enforce_limits(state, products, orders, limits_override)
+            # ── Handle Conversions (Round 2 ARBITRAGE) ─────────────────────
+            if conversions and isinstance(conversions, (int, float)) and conversions != 0:
+                # Typically conversions applies to ORCHIDS
+                prod = "ORCHIDS"
+                if prod in products:
+                    row = prices_at_ts[prod]
+                    obs = state.observations.conversionObservations.get(prod)
+                    if obs:
+                        qty = int(conversions)
+                        # Position update
+                        old_pos = state.position.get(prod, 0)
+                        state.position[prod] = old_pos + qty
+                        
+                        # Realized PnL update (Arbitrage calculation)
+                        # Selling to conversion: qty is negative, we get bidPrice - tariffs
+                        # Buying from conversion: qty is positive, we pay askPrice + tariffs
+                        if qty > 0: # Buying
+                            cost = (obs.askPrice + obs.importTariff + obs.transportFees) * qty
+                            profit_loss[prod] -= cost
+                        else: # Selling
+                            proceeds = (obs.bidPrice - obs.exportTariff - obs.transportFees) * abs(qty)
+                            profit_loss[prod] += proceeds
 
-            tick_filled_products: set[str] = set()
+            tick_filled_products = set()
+            tick_own_trades = {}
+            current_tick_market_trades = trades_by_ts.get(ts, {})
+
             for product in products:
-                raw_market_trades = trades_by_ts.get(ts, {}).get(product, [])
+                raw_market_trades = current_tick_market_trades.get(product, [])
                 for t in raw_market_trades:
-                    all_market_trades.append(
-                        {
-                            "day": day_num,
-                            "timestamp": ts,
-                            "product": product,
-                            "price": t.price,
-                            "quantity": t.quantity,
-                            "buyer": t.buyer,
-                            "seller": t.seller,
-                        }
-                    )
+                    all_market_trades.append({"day": day_num, "timestamp": ts, "product": product, "price": t.price, "quantity": t.quantity, "buyer": t.buyer, "seller": t.seller})
+                
+                market_shadow = [{"price": t.price, "buy_qty": t.quantity, "sell_qty": t.quantity} for t in raw_market_trades]
 
-                market_shadow = [
-                    {
-                        "price": t.price,
-                        "buy_qty": t.quantity,
-                        "sell_qty": t.quantity,
-                    }
-                    for t in raw_market_trades
-                ]
-
-                for order in orders.get(product, []):
-                    if not isinstance(order.symbol, str) or not isinstance(order.price, int) or not isinstance(order.quantity, int):
-                        raise ValueError("Order fields must be (str, int, int)")
-
+                product_orders = orders.get(product, [])
+                for order in product_orders:
                     if order.quantity > 0:
-                        fills, fill_seq = _match_buy_order(
-                            state=state,
-                            product=product,
-                            order=order,
-                            market_trades=market_shadow,
-                            profit_loss=profit_loss,
-                            fill_seq_start=fill_seq,
-                            day=day_num,
-                            matching_mode=matching_mode,
-                            limits_override=limits_override,
-                        )
-                        if fills:
-                            tick_filled_products.add(product)
+                        fills, fill_seq = _match_buy_order(state, product, order, market_shadow, profit_loss, fill_seq, day_num, matching_mode, limits_override)
+                    else:
+                        fills, fill_seq = _match_sell_order(state, product, order, market_shadow, profit_loss, fill_seq, day_num, matching_mode, limits_override)
+                    
+                    if fills:
+                        tick_filled_products.add(product)
                         all_fills.extend(fills)
-                    elif order.quantity < 0:
-                        fills, fill_seq = _match_sell_order(
-                            state=state,
-                            product=product,
-                            order=order,
-                            market_trades=market_shadow,
-                            profit_loss=profit_loss,
-                            fill_seq_start=fill_seq,
-                            day=day_num,
-                            matching_mode=matching_mode,
-                            limits_override=limits_override,
-                        )
-                        if fills:
-                            tick_filled_products.add(product)
-                        all_fills.extend(fills)
+                        own_fills = _fills_to_own_trades(fills)
+                        tick_own_trades.setdefault(product, []).extend(own_fills)
 
-            previous_market_trades = {
-                product: list(trades_by_ts.get(ts, {}).get(product, []))
-                for product in products
-            }
+            previous_market_trades = current_tick_market_trades
+            previous_own_trades = tick_own_trades
 
             portfolio_pnl = 0.0
-            tick_points: list[dict[str, Any]] = []
             for product in products:
                 row = prices_at_ts[product]
-                pos = state.position.get(product, 0)
-                mtm = profit_loss[product] + pos * row.mid_price
-                portfolio_pnl += mtm
-
-                tick_points.append(
-                    {
-                        "day": day_num,
-                        "timestamp": ts,
-                        "product": product,
-                        "mid_price": row.mid_price,
-                        "best_bid": row.bid_prices[0] if row.bid_prices else None,
-                        "best_ask": row.ask_prices[0] if row.ask_prices else None,
-                        "bid_prices": row.bid_prices,
-                        "bid_volumes": row.bid_volumes,
-                        "ask_prices": row.ask_prices,
-                        "ask_volumes": row.ask_volumes,
-                        "position": pos,
-                        "realized_pnl": profit_loss[product],
-                        "product_mtm_pnl": mtm,
-                        "portfolio_mtm_pnl": None,
-                    }
-                )
+                portfolio_pnl += profit_loss[product] + state.position.get(product, 0) * row.mid_price
 
             day_equity.append(portfolio_pnl)
-            portfolio_points.append(
-                {
-                    "day": day_num,
-                    "timestamp": ts,
-                    "portfolio_mtm_pnl": portfolio_pnl,
-                }
-            )
-            keep_product_snapshot = (completed_ticks % PRODUCT_POINT_STRIDE) == 0
-            for point in tick_points:
-                point["portfolio_mtm_pnl"] = portfolio_pnl
-                if keep_product_snapshot or point["product"] in tick_filled_products:
-                    all_points.append(point)
+            portfolio_points.append({"day": day_num, "timestamp": ts, "portfolio_mtm_pnl": portfolio_pnl})
+            
+            if (completed_ticks % PRODUCT_POINT_STRIDE) == 0 or tick_filled_products:
+                keep_all = (completed_ticks % PRODUCT_POINT_STRIDE) == 0
+                for product in products:
+                    if keep_all or product in tick_filled_products:
+                        row = prices_at_ts[product]
+                        pos = state.position.get(product, 0)
+                        all_points.append({
+                            "day": day_num, "timestamp": ts, "product": product, "mid_price": row.mid_price,
+                            "best_bid": row.bid_prices[0] if row.bid_prices else None, "best_ask": row.ask_prices[0] if row.ask_prices else None,
+                            "bid_prices": row.bid_prices, "bid_volumes": row.bid_volumes, "ask_prices": row.ask_prices, "ask_volumes": row.ask_volumes,
+                            "position": pos, "realized_pnl": profit_loss[product], "product_mtm_pnl": profit_loss[product] + pos * row.mid_price, "portfolio_mtm_pnl": portfolio_pnl,
+                        })
 
-            # ── progress + yield to the JS event loop ─────────────────────
             completed_ticks += 1
             if completed_ticks % progress_every == 0:
-                if progress_callback is not None:
-                    try:
-                        progress_callback(completed_ticks, total_ticks)
-                    except Exception:
-                        pass
-                # asyncio.sleep(0) hands control back to the browser so it
-                # can repaint; without this the UI stays frozen for the
-                # whole backtest.
+                if progress_callback: progress_callback(completed_ticks, total_ticks)
                 await asyncio.sleep(0)
 
         day_equity_paths.append(day_equity)
 
-    if progress_callback is not None:
-        try:
-            progress_callback(total_ticks, total_ticks)
-        except Exception:
-            pass
-
     metrics = _json_safe_metrics(_compute_metrics(day_equity_paths))
-    payload = {
-        "portfolio_points": portfolio_points,
-        "points": all_points,
-        "fills": all_fills,
-        "market_trades": all_market_trades,
-        "state_logs": state_logs,
-        "metrics": metrics,
-        "matching_mode": matching_mode,
-        "limits_override": limits_override,
-    }
-    return json.dumps(payload)
+    return json.dumps({
+        "portfolio_points": portfolio_points, "points": all_points, "fills": all_fills, "market_trades": all_market_trades,
+        "state_logs": state_logs, "metrics": metrics, "matching_mode": matching_mode, "limits_override": limits_override,
+    })

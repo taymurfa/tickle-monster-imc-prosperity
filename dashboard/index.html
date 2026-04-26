@@ -584,6 +584,24 @@ body::before {
 .crumbs .here { color: var(--ink-1); }
 .crumbs .sep  { color: var(--ink-4); }
 
+.round-select {
+  background: transparent;
+  border: 0;
+  color: var(--ink-1);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  margin-left: -8px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.round-select:hover { background: var(--bg-2); }
+.round-select option { background: var(--bg-1); color: var(--ink-1); }
+
 .tabs {
   display: flex; gap: 2px;
   background: var(--bg-2);
@@ -1573,9 +1591,9 @@ table.tbl {
       <div class="field">
         <label class="field-label" for="matchingMode">Matching mode</label>
         <select id="matchingMode" class="select">
-          <option value="all" selected>all</option>
+          <option value="all">all</option>
           <option value="worse">worse</option>
-          <option value="none">none</option>
+          <option value="none" selected>none</option>
         </select>
       </div>
 
@@ -1664,7 +1682,11 @@ table.tbl {
     <!-- topbar -->
     <div class="topbar">
       <div class="crumbs">
-        <span>Round 3</span>
+        <select id="roundSelect" class="round-select">
+          <option value="1">Round 1</option>
+          <option value="2">Round 2</option>
+          <option value="3" selected>Round 3</option>
+        </select>
         <span class="sep">/</span>
         <span class="here">overview</span>
       </div>

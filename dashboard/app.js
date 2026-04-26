@@ -1,15 +1,62 @@
-const DATA_FILES = [
-  "prices_round_3_day_0.csv",
-  "prices_round_3_day_1.csv",
-  "prices_round_3_day_2.csv",
-  "trades_round_3_day_0.csv",
-  "trades_round_3_day_1.csv",
-  "trades_round_3_day_2.csv",
-];
+const ROUND_CONFIGS = {
+  "1": {
+    basePath: "ROUND_1/ROUND1",
+    files: [
+      "prices_round_1_day_-2.csv",
+      "prices_round_1_day_-1.csv",
+      "prices_round_1_day_0.csv",
+      "trades_round_1_day_-2.csv",
+      "trades_round_1_day_-1.csv",
+      "trades_round_1_day_0.csv",
+    ],
+    labels: { emerald: "Amethysts", tomato: "Starfish" },
+    overviewProducts: ["AMETHYSTS", "STARFISH"],
+    voucherStrikes: {},
+  },
+  "2": {
+    basePath: "ROUND_2/ROUND2",
+    files: [
+      "prices_round_2_day_-1.csv",
+      "prices_round_2_day_0.csv",
+      "prices_round_2_day_1.csv",
+      "trades_round_2_day_-1.csv",
+      "trades_round_2_day_0.csv",
+      "trades_round_2_day_1.csv",
+    ],
+    labels: { emerald: "Osmium", tomato: "Root" },
+    overviewProducts: ["ASH_COATED_OSMIUM", "INTARIAN_PEPPER_ROOT", "ORCHIDS"],
+    voucherStrikes: {},
+  },
+  "3": {
+    basePath: "ROUND_3/ROUND3",
+    files: [
+      "prices_round_3_day_0.csv",
+      "prices_round_3_day_1.csv",
+      "prices_round_3_day_2.csv",
+      "trades_round_3_day_0.csv",
+      "trades_round_3_day_1.csv",
+      "trades_round_3_day_2.csv",
+    ],
+    labels: { emerald: "Hydrogel", tomato: "Velvetfruit" },
+    overviewProducts: [
+      "HYDROGEL_PACK",
+      "VELVETFRUIT_EXTRACT",
+      "VEV_4000", "VEV_4500", "VEV_5000", "VEV_5100", "VEV_5200", "VEV_5300", "VEV_5400", "VEV_5500", "VEV_6000", "VEV_6500"
+    ],
+    voucherStrikes: {
+      VEV_4000: 4000, VEV_4500: 4500, VEV_5000: 5000, VEV_5100: 5100, VEV_5200: 5200,
+      VEV_5300: 5300, VEV_5400: 5400, VEV_5500: 5500, VEV_6000: 6000, VEV_6500: 6500,
+    },
+  }
+};
 
-const DATA_BASE_PATH = "ROUND_3/ROUND3";
+let currentRound = "3";
+let DATA_FILES = ROUND_CONFIGS[currentRound].files;
+let DATA_BASE_PATH = ROUND_CONFIGS[currentRound].basePath;
 
 const dom = {
+  roundSelect: document.getElementById("roundSelect"),
+  roundMetaPill: document.querySelector(".meta-pill"),
   dataFileList: document.getElementById("dataFileList"),
   strategyInput: document.getElementById("strategyInput"),
   dropZone: document.getElementById("dropZone"),
@@ -3030,12 +3077,13 @@ async function exportExcel(options = {}) {
 }
 
 async function ensurePyodide() {
-  if (pyodide) {
-    return pyodide;
+  if (!pyodide) {
+    pyodide = await loadPyodide();
   }
 
-  pyodide = await loadPyodide();
-  const engineCode = await fetchText("backtest_engine.py");
+  // Reload the engine for each simulation so dashboard runs reflect local
+  // backtest_engine.py edits without requiring a full browser refresh.
+  const engineCode = await fetchText(`backtest_engine.py?ts=${Date.now()}`);
   pyodide.runPython(engineCode);
   return pyodide;
 }
@@ -3448,8 +3496,40 @@ function handleStrategyFile(file) {
   reader.readAsText(file);
 }
 
+function updateRound(round) {
+  currentRound = String(round);
+  const config = ROUND_CONFIGS[currentRound];
+  if (!config) return;
+
+  DATA_FILES = config.files;
+  DATA_BASE_PATH = config.basePath;
+
+  // Update UI Labels
+  if (dom.emeraldLimitLabel) dom.emeraldLimitLabel.textContent = `${config.labels.emerald} Limit`;
+  if (dom.tomatoLimitLabel) dom.tomatoLimitLabel.textContent = `${config.labels.tomato} Limit`;
+  
+  if (dom.roundMetaPill) {
+    dom.roundMetaPill.innerHTML = `<span class="lbl">round</span>${currentRound}`;
+  }
+
+  // Update Voucher Visibility
+  if (dom.voucherLimit) {
+    const isR3 = currentRound === "3";
+    dom.voucherLimit.closest(".field").style.display = isR3 ? "" : "none";
+  }
+
+  renderDataFiles();
+  setStatus(`Switched to Round ${currentRound}.`);
+}
+
 function bindEvents() {
   initializeGraphWidgets();
+  
+  if (dom.roundSelect) {
+    dom.roundSelect.addEventListener("change", (e) => {
+      updateRound(e.target.value);
+    });
+  }
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeFullscreenWidget();
   });
