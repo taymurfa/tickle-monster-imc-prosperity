@@ -651,11 +651,16 @@ async def run_dashboard_backtest(
 
         profit_loss = {p: 0.0 for p in products}
         day_equity: list[float] = []
+        previous_market_trades: dict[str, list[Trade]] = {}
 
         for ts in sorted(prices_by_ts.keys()):
             prices_at_ts = prices_by_ts[ts]
             state.timestamp = ts
             _prepare_state(state, prices_at_ts)
+            # Strategies should only see market trades that were already public
+            # before this decision point. Current-tick trades are still reserved
+            # for order matching below.
+            state.market_trades = previous_market_trades
 
             output = trader.run(state)
             if not isinstance(output, tuple) or len(output) != 3:
@@ -737,6 +742,11 @@ async def run_dashboard_backtest(
                         if fills:
                             tick_filled_products.add(product)
                         all_fills.extend(fills)
+
+            previous_market_trades = {
+                product: list(trades_by_ts.get(ts, {}).get(product, []))
+                for product in products
+            }
 
             portfolio_pnl = 0.0
             tick_points: list[dict[str, Any]] = []
