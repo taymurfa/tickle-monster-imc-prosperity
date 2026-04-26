@@ -495,6 +495,7 @@ body::before {
 .topbar {
   position: sticky; top: 0; z-index: 5;
   display: flex; align-items: center;
+  justify-content: flex-end;
   gap: 16px;
   padding: 0 24px;
   height: 52px;
@@ -509,6 +510,8 @@ body::before {
   font-size: 11px; font-weight: 500;
   color: var(--ink-3);
 }
+.topbar .crumbs { margin-left: auto; }
+.topbar .spacer { display: none; }
 .crumbs .here { color: var(--ink-1); }
 .crumbs .sep  { color: var(--ink-4); }
 
@@ -556,25 +559,25 @@ body::before {
 /* hero strip */
 .hero {
   display: grid;
-  grid-template-columns: minmax(360px, 0.8fr) minmax(520px, 1.25fr);
+  grid-template-columns: minmax(320px, 0.78fr) minmax(480px, 1.22fr);
   gap: 1px;
   background: var(--line-1);
   border: 1px solid var(--line-2);
-  border-radius: 28px;
+  border-radius: 24px;
   overflow: hidden;
-  min-height: 430px;
-  box-shadow: 0 18px 70px rgb(0 0 0 / 0.28);
+  min-height: 360px;
+  box-shadow: 0 14px 50px rgb(0 0 0 / 0.24);
 }
 .hero > * { background: oklch(0.105 0.004 260); }
 
-.hero-left { padding: 42px 42px 34px; display: flex; flex-direction: column; gap: 26px; min-width: 0; }
-.hero-right { padding: 34px 38px 26px; display: flex; flex-direction: column; min-width: 0; }
+.hero-left { padding: 36px 42px 32px; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.hero-right { padding: 34px 38px 24px; display: flex; flex-direction: column; min-width: 0; }
 
 .eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
-  letter-spacing: 0.22em;
+  font-size: 11px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--ink-3);
 }
@@ -601,7 +604,7 @@ body::before {
   font-family: "Fraunces", serif;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
-  font-size: clamp(64px, 6vw, 92px);
+  font-size: clamp(48px, 4.7vw, 74px);
   line-height: 1;
   letter-spacing: -0.025em;
   color: var(--ink-1);
@@ -622,32 +625,32 @@ body::before {
   100% { color: var(--ink-1); text-shadow: none; }
 }
 .pnl-value .currency {
-  font-size: 32px;
+  font-size: 26px;
   color: var(--ink-3);
   align-self: baseline;
   font-family: "Inter Tight", sans-serif;
   font-weight: 400;
 }
 .pnl-value .cents {
-  margin-left: -10px;
-  font-size: 42px;
+  margin-left: -8px;
+  font-size: 32px;
   color: oklch(0.58 0.01 260);
 }
 .pnl-delta {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: "JetBrains Mono", monospace;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 500;
 }
 .pnl-delta.pos { color: var(--pos); }
 .pnl-delta.neg { color: var(--neg); }
 .pnl-delta .arrow {
   display: inline-grid; place-items: center;
-  width: 25px; height: 25px;
+  width: 21px; height: 21px;
   background: var(--pos-dim);
   border-radius: 7px;
   color: var(--pos);
-  font-size: 15px;
+  font-size: 13px;
   font-family: "Inter", sans-serif;
 }
 .pnl-delta.neg .arrow {
@@ -663,24 +666,24 @@ body::before {
   gap: 1px;
   background: var(--line-1);
   border: 1px solid var(--line-1);
-  border-radius: 14px;
+  border-radius: 12px;
   overflow: hidden;
   margin-top: auto;
 }
-.chip { background: oklch(0.115 0.004 260); padding: 18px 21px; min-width: 0; }
+.chip { background: oklch(0.115 0.004 260); padding: 15px 18px; min-width: 0; }
 .chip .k {
   font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
-  letter-spacing: 0.15em;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-3);
-  margin-bottom: 10px;
+  margin-bottom: 7px;
   display: flex; align-items: center; gap: 4px;
 }
 .chip .v {
   font-family: "JetBrains Mono", monospace;
   font-variant-numeric: tabular-nums;
-  font-size: 27px;
+  font-size: 22px;
   font-weight: 500;
   color: var(--ink-1);
   letter-spacing: -0.01em;
@@ -689,7 +692,7 @@ body::before {
 .chip .v.neg { color: var(--neg); }
 .chip .sub  {
   font-family: "JetBrains Mono", monospace;
-  font-size: 13px;
+  font-size: 11.5px;
   color: var(--ink-3);
   margin-top: 4px;
 }
@@ -697,18 +700,18 @@ body::before {
 /* hero chart area */
 .chart-head {
   display: flex; align-items: center;
-  gap: 16px; margin-bottom: 16px;
+  gap: 14px; margin-bottom: 12px;
 }
 .chart-title {
   font-family: "Inter Tight", sans-serif;
   font-weight: 600;
-  font-size: 20px;
+  font-size: 16px;
   letter-spacing: -0.005em;
   color: var(--ink-1);
 }
 .chart-meta {
   font-family: "JetBrains Mono", monospace;
-  font-size: 14px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .range-tabs {
@@ -717,15 +720,15 @@ body::before {
   background: oklch(0.14 0.004 260 / 0.72);
   border: 1px solid var(--line-1);
   border-radius: 10px;
-  padding: 4px;
+  padding: 3px;
 }
 .range-tabs button {
   background: transparent; border: 0;
   color: var(--ink-3);
   font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
-  padding: 8px 13px;
-  border-radius: 8px;
+  font-size: 11px;
+  padding: 6px 11px;
+  border-radius: 7px;
   cursor: pointer;
 }
 .range-tabs button.on {
@@ -751,7 +754,7 @@ body::before {
   background-repeat: repeat-x;
 }
 
-.hero-chart-wrap { flex: 1; min-height: 320px; display: flex; }
+.hero-chart-wrap { flex: 1; min-height: 260px; display: flex; }
 .hero-chart { width: 100%; height: 100%; display: block; }
 
 /* layout grids */
@@ -1134,17 +1137,19 @@ table.tbl {
 }
 .product-chart-item {
   min-width: 0;
-  background: var(--bg-2);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-md);
+  background: #050608;
+  border: 1px solid rgba(55, 65, 81, 0.42);
+  border-radius: 2px;
   overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.025);
 }
 .product-chart-item-head {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line-1);
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(55, 65, 81, 0.35);
+  background: #080a0d;
 }
 .product-chart-title {
   margin: 0;
@@ -1154,16 +1159,17 @@ table.tbl {
   white-space: nowrap;
   font-family: "JetBrains Mono", monospace;
   font-size: 11px;
-  color: var(--ink-1);
-  letter-spacing: 0.02em;
+  color: #c7d2fe;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
 }
 .product-chart-strike {
   flex: 0 0 auto;
   font-family: "JetBrains Mono", monospace;
   font-size: 10px;
-  color: var(--ink-2);
-  background: oklch(0.76 0.13 220 / 0.11);
-  border: 1px solid oklch(0.76 0.13 220 / 0.22);
+  color: #93c5fd;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(59, 130, 246, 0.35);
   border-radius: 999px;
   padding: 2px 7px;
 }
@@ -1183,7 +1189,12 @@ table.tbl {
 }
 .product-chart {
   width: 100%;
-  height: 260px;
+  height: 300px;
+  background:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px),
+    #050608;
+  background-size: 54px 45px;
 }
 
 /* inspector blocks */
@@ -1534,26 +1545,6 @@ table.tbl {
       <div id="status" class="sidebar-status">Initializing Pyodide...</div>
     </div>
 
-    <!-- data files -->
-    <div class="section">
-      <div class="section-head">
-        <span class="section-title">Data files</span>
-        <span class="section-title" style="letter-spacing:0">round 3</span>
-      </div>
-      <ul id="dataFileList" class="file-list"></ul>
-    </div>
-
-    <!-- pinned runs -->
-    <div class="section">
-      <div class="section-head">
-        <span class="section-title">Pinned runs</span>
-        <button id="clearPinnedRuns" class="section-action">Clear</button>
-      </div>
-      <input id="runLabel" class="input" type="text" placeholder="Run label" />
-      <button id="pinRunButton" class="btn-primary" type="button" style="width:100%;margin:8px 0">Pin current run</button>
-      <ul id="savedRunsList" class="pinned-list"></ul>
-    </div>
-
     <!-- metrics -->
     <div class="section">
       <div class="section-head">
@@ -1623,7 +1614,7 @@ table.tbl {
 
           <div class="pnl-display">
             <div class="pnl-value">
-              <span class="currency">SH</span>
+              <span class="currency">$</span>
               <span id="heroPnl">—</span><span id="heroPnlCents" class="cents"></span>
             </div>
             <div id="heroDelta" class="pnl-delta">
@@ -1671,7 +1662,7 @@ table.tbl {
         <div class="hero-right">
           <div class="chart-head">
             <span class="chart-title">Equity curve</span>
-            <span id="heroChartMeta" class="chart-meta">SeaShells · Round 3</span>
+            <span id="heroChartMeta" class="chart-meta">Round 3</span>
             <div id="heroRangeTabs" class="range-tabs">
               <button type="button" data-range="0">D0</button>
               <button type="button" data-range="1">D1</button>
@@ -1979,14 +1970,6 @@ table.tbl {
 
       <!-- ============ COMPARE ============ -->
       <div class="page-panel" data-panel="compare" data-tab-panel="compare">
-
-        <!-- pinned runs reference -->
-        <section class="card">
-          <div class="card-head">
-            <h3>Saved runs</h3>
-            <span class="meta">manage from sidebar · pinned runs auto-overlay on the portfolio chart</span>
-          </div>
-        </section>
 
         <!-- synthetic spread tool -->
         <section class="card">

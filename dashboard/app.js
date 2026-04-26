@@ -559,6 +559,7 @@ function fmtNumber(value, digits = 2) {
 }
 
 function renderDataFiles() {
+  if (!dom.dataFileList) return;
   dom.dataFileList.innerHTML = "";
   for (const file of DATA_FILES) {
     const li = document.createElement("li");
@@ -578,6 +579,34 @@ async function fetchText(path) {
 function setStatus(message, isError = false) {
   dom.status.textContent = message;
   dom.status.style.color = isError ? "#fb7185" : "";
+}
+
+function updateRound(round) {
+  const config = ROUND_CONFIGS[round];
+  if (!config) {
+    setStatus(`Round ${round} is not configured.`, true);
+    return;
+  }
+
+  currentRound = round;
+  DATA_FILES = config.files;
+  DATA_BASE_PATH = config.basePath;
+
+  if (dom.roundMetaPill) {
+    dom.roundMetaPill.innerHTML = `<span class="lbl">round</span>${round}`;
+  }
+  if (dom.heroChartMeta) {
+    dom.heroChartMeta.textContent = `Round ${round}`;
+  }
+  if (dom.emeraldLimitLabel) {
+    dom.emeraldLimitLabel.textContent = round === "1" || round === "2" ? "Osmium Limit" : "HP Limit";
+  }
+  if (dom.tomatoLimitLabel) {
+    dom.tomatoLimitLabel.textContent = round === "1" || round === "2" ? "Pepper Root Limit" : "VFE Limit";
+  }
+
+  renderDataFiles();
+  setStatus(`Round ${round} selected.`);
 }
 
 function parseKey(point) {
@@ -615,6 +644,55 @@ function computeRange(values) {
   const span = max - min;
   const pad = span * 0.08;
   return [min - pad, max + pad];
+}
+
+function buildCandles(rows, valueKey = "mid_price", targetCandles = 90) {
+  const validRows = rows.filter((row) => Number.isFinite(row[valueKey]));
+  if (!validRows.length) {
+    return { x: [], open: [], high: [], low: [], close: [], customdata: [], keyToX: new Map() };
+  }
+
+  const bucketSize = Math.max(1, Math.ceil(validRows.length / targetCandles));
+  const candles = [];
+  const keyToX = new Map();
+
+  for (let i = 0; i < validRows.length; i += bucketSize) {
+    const bucket = validRows.slice(i, i + bucketSize);
+    const prices = bucket.map((row) => row[valueKey]);
+    const x = candles.length;
+    for (const row of bucket) {
+      keyToX.set(parseKey(row), x);
+    }
+    candles.push({
+      x,
+      open: prices[0],
+      high: Math.max(...prices),
+      low: Math.min(...prices),
+      close: prices[prices.length - 1],
+      customdata: `D${bucket[0].day} T${compactTs(bucket[0].timestamp)} - D${bucket[bucket.length - 1].day} T${compactTs(bucket[bucket.length - 1].timestamp)}`,
+    });
+  }
+
+  return {
+    x: candles.map((c) => c.x),
+    open: candles.map((c) => c.open),
+    high: candles.map((c) => c.high),
+    low: candles.map((c) => c.low),
+    close: candles.map((c) => c.close),
+    customdata: candles.map((c) => c.customdata),
+    keyToX,
+  };
+}
+
+function buildTradeVolumeByCandle(product, candleData) {
+  const volume = new Map(candleData.x.map((x) => [x, 0]));
+  for (const trade of lastResult.market_trades || []) {
+    if (trade.product !== product) continue;
+    const candleX = candleData.keyToX.get(parseKey(trade));
+    if (candleX === undefined) continue;
+    volume.set(candleX, (volume.get(candleX) || 0) + Math.abs(trade.quantity || 0));
+  }
+  return candleData.x.map((x) => volume.get(x) || 0);
 }
 
 function constantFiniteValue(values) {
@@ -717,7 +795,7 @@ function getSelectedLimits() {
   const products = config.overviewProducts || [];
   const limits = {};
   
-  if (currentRound === "3") {
+  if (currentRound === "3" || currentRound === "4") {
     limits["HYDROGEL_PACK"] = eLim;
     limits["VELVETFRUIT_EXTRACT"] = tLim;
     products.forEach(p => { if (p.startsWith("VEV_")) limits[p] = vLim; });
@@ -1144,16 +1222,25 @@ function renderProductCharts(points, fills) {
       "seriesValue"
     );
 
-    const axis = buildTimeAxis(productPoints);
-    const indexByKey = new Map(productPoints.map((p, idx) => [parseKey(p), idx]));
-
     const isFixedValueProduct = Object.hasOwn(FIXED_VALUE_PRODUCTS, product);
     const fairValue = FIXED_VALUE_PRODUCTS[product];
-    const priceValues = isFixedValueProduct ? productFills.map((f) => f.price) : productPoints.map((p) => p.mid_price);
     const mtmValues = stitchedProductPoints.map((p) => p.stitchedValue);
+    const candleTarget = performanceMode === "full" ? 180 : 90;
+    const candleRows = productPoints.map((point) => ({
+      ...point,
+      candlePrice: isFixedValueProduct ? fairValue : point.mid_price,
+    }));
+    const candleData = buildCandles(candleRows, "candlePrice", candleTarget);
+    const pnlCandles = buildCandles(stitchedProductPoints, "stitchedValue", candleTarget);
+    const volumeValues = buildTradeVolumeByCandle(product, candleData);
+    const candleTickVals = candleData.x.filter((_, idx) => idx % Math.max(1, Math.ceil(candleData.x.length / 8)) === 0);
+    const candleTickText = candleTickVals.map((x) => (candleData.customdata[x] || "").split(" - ")[0]);
 
-    const fillX = productFills.map((f) => indexByKey.get(parseFillKey(f))).filter((idx) => idx !== undefined);
-    const fillY = productFills.map((f) => f.price);
+    const fillPoints = productFills
+      .map((fill) => ({ fill, x: candleData.keyToX.get(parseFillKey(fill)) }))
+      .filter((item) => item.x !== undefined);
+    const fillX = fillPoints.map((item) => item.x);
+    const fillY = fillPoints.map((item) => item.fill.price);
 
     const card = document.createElement("div");
     card.className = "product-chart-item";
@@ -1185,46 +1272,85 @@ function renderProductCharts(points, fills) {
 
     const traces = [
       {
+        type: "bar",
+        name: `${product} Volume`,
+        x: candleData.x,
+        y: volumeValues,
+        marker: {
+          color: candleData.close.map((close, idx) => close >= candleData.open[idx] ? "rgba(34,197,94,0.34)" : "rgba(239,68,68,0.30)"),
+        },
+        yaxis: "y3",
+        hovertemplate: "Market volume=%{y}<extra></extra>",
+      },
+      {
+        type: "candlestick",
+        name: `${product} OHLC`,
+        x: candleData.x,
+        open: candleData.open,
+        high: candleData.high,
+        low: candleData.low,
+        close: candleData.close,
+        increasing: { line: { color: "#22c55e", width: 1 }, fillcolor: "#22c55e" },
+        decreasing: { line: { color: "#ef4444", width: 1 }, fillcolor: "#ef4444" },
+        whiskerwidth: 0.35,
+        customdata: candleData.customdata,
+        hovertemplate: "%{customdata}<br>O=%{open:.2f}<br>H=%{high:.2f}<br>L=%{low:.2f}<br>C=%{close:.2f}<extra></extra>",
+        yaxis: "y1",
+      },
+      {
         type: "scattergl",
         mode: "markers",
         name: `${product} Fills`,
         x: fillX,
         y: fillY,
         marker: {
-          size: productFills.map((f) => Math.max(7, Math.min(16, f.quantity + 5))),
-          color: productFills.map((f) => (f.side === "BUY" ? "#34d399" : "#fb7185")),
+          size: fillPoints.map(({ fill }) => Math.max(7, Math.min(16, fill.quantity + 5))),
+          color: fillPoints.map(({ fill }) => (fill.side === "BUY" ? "#34d399" : "#fb7185")),
+          line: { color: "#020617", width: 1 },
           opacity: 0.85,
         },
         yaxis: "y1",
       },
       {
-        type: "scattergl",
+        type: "scatter",
         mode: "lines",
         name: `${product} PnL`,
-        x: axis.x,
-        y: mtmValues,
-        line: { color: "#38bdf8", width: 1.5, dash: "dot" },
+        x: pnlCandles.x,
+        y: pnlCandles.close,
+        line: { color: "rgba(56,189,248,0.75)", width: 1.2, dash: "dot" },
         yaxis: "y2",
       },
-      {
-        type: "scattergl",
-        mode: "lines",
-        name: `${product} Mid Price`,
-        x: axis.x,
-        y: priceValues,
-        line: { color: "#e2e8f0", width: 1.8 },
-        yaxis: "y1",
-      }
     ];
 
     Plotly.newPlot(
       plotTarget,
       traces,
       baseLayout({
-        margin: { l: 56, r: 56, t: 8, b: 36 },
-        xaxis: { tickvals: axis.tickVals, ticktext: axis.tickText },
-        yaxis: { title: "Price", range: computeRange([...priceValues, ...fillY]) },
-        yaxis2: { title: "PnL", overlaying: "y", side: "right", showgrid: false, range: computeRange(mtmValues) },
+        margin: { l: 20, r: 58, t: 8, b: 32 },
+        bargap: 0.15,
+        xaxis: {
+          tickvals: candleTickVals,
+          ticktext: candleTickText,
+          rangeslider: { visible: false },
+          showspikes: true,
+          spikemode: "across",
+          spikecolor: "rgba(148,163,184,0.30)",
+        },
+        yaxis: {
+          title: "",
+          side: "right",
+          range: computeRange([...candleData.high, ...candleData.low, ...fillY]),
+          tickformat: ",.2f",
+        },
+        yaxis2: { title: "PnL", overlaying: "y", side: "left", showgrid: false, range: computeRange(mtmValues), visible: false },
+        yaxis3: {
+          title: "",
+          overlaying: "y",
+          side: "left",
+          showgrid: false,
+          visible: false,
+          range: [0, Math.max(1, ...volumeValues) * 4],
+        },
         legend: { orientation: "h", y: 1.15, x: 0 },
       }),
       PLOTLY_CONFIG
