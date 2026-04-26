@@ -2546,15 +2546,29 @@ function bindEvents() {
   });
   dom.strategyInput.addEventListener("change", (e) => {
     const f = e.target.files?.[0];
+    e.target.value = "";
     if (f) {
       const reader = new FileReader();
       reader.onload = () => { strategyCode = String(reader.result); strategyName = f.name.replace(".py", ""); dom.strategyMeta.textContent = f.name; setStatus(`Loaded ${f.name}`); };
       reader.readAsText(f);
     }
   });
+  if (dom.dropZone) {
+    dom.dropZone.addEventListener("click", (e) => {
+      if (e.target !== dom.strategyInput) dom.strategyInput.click();
+    });
+  }
   if (dom.logInput) {
-    dom.logInput.addEventListener("click", () => { dom.logInput.value = ""; });
-    dom.logInput.addEventListener("change", (e) => handleOosLogFile(e.target.files?.[0]));
+    dom.logInput.addEventListener("change", (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      handleOosLogFile(f);
+    });
+  }
+  if (dom.logDropZone) {
+    dom.logDropZone.addEventListener("click", (e) => {
+      if (e.target !== dom.logInput) dom.logInput.click();
+    });
   }
   const logDropTargets = [dom.logDropZone, dom.logInput].filter(Boolean);
   for (const target of logDropTargets) {

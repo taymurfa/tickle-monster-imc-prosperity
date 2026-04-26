@@ -1428,7 +1428,7 @@ table.tbl {
       <div class="drop" id="dropZone">
         <strong>Drop a .py file</strong>
         <div class="muted" style="font-size:11px;margin-top:2px">or click to choose</div>
-        <input id="strategyInput" type="file" accept=".py" style="position:absolute;inset:0;opacity:0;cursor:pointer" />
+        <input id="strategyInput" type="file" accept=".py" style="display:none" />
         <div class="file-pill" id="strategyMeta" style="position:relative;z-index:1">Drop a .py strategy file to begin.</div>
       </div>
       <div id="watchStatus" class="sidebar-status" style="display:none;color:var(--accent);margin-top:8px">
@@ -1956,7 +1956,7 @@ table.tbl {
               <div class="drop logs-drop" id="logDropZone">
                 <strong>Drop an IMC log</strong>
                 <div class="muted" style="font-size:11px;margin-top:2px">Accepts .log, .json, .csv, or .txt from the website backtester</div>
-                <input id="logInput" type="file" accept=".log,.txt,.json,.csv" style="position:absolute;inset:0;opacity:0;cursor:pointer" />
+                <input id="logInput" type="file" accept=".log,.txt,.json,.csv" style="display:none" />
                 <div class="file-pill" id="logMeta" style="position:relative;z-index:1">No log loaded</div>
               </div>
               <label class="section-action logs-upload-button" for="logInput" style="cursor:pointer">Upload log</label>
