@@ -193,11 +193,11 @@ const FIXED_VALUE_PRODUCTS = {
 
 // ── centralised Plotly dark-theme layout defaults ────────────────────────────
 const CHART_BG   = "rgba(0,0,0,0)";
-const PLOT_BG    = "#171A20";
-const GRID_COLOR = "rgba(226,232,240,0.13)";
-const FONT_COLOR = "#D6DEE8";
-const MUTED_FONT_COLOR = "#9AA8B8";
-const SPIKE_COLOR = "#38BDF8";
+const PLOT_BG = "#09090b";
+const GRID_COLOR = "#18181b";
+const FONT_COLOR = "#fafafa";
+const MUTED_FONT_COLOR = "#a1a1aa";
+const SPIKE_COLOR = "#fafafa";
 
 const PLOTLY_CONFIG = {
   responsive: true,
@@ -210,8 +210,8 @@ const PLOTLY_CONFIG = {
 function baseLayout(extra = {}) {
   const defaults = {
     paper_bgcolor: CHART_BG,
-    plot_bgcolor:  PLOT_BG,
-    font: { color: FONT_COLOR, family: "JetBrains Mono, monospace", size: 11 },
+    plot_bgcolor: PLOT_BG,
+    font: { color: FONT_COLOR, family: "Inter, sans-serif", size: 11 },
     margin: { l: 56, r: 20, t: 8, b: 36 },
     hovermode: "x unified",
     dragmode: "pan",

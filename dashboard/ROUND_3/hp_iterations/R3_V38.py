@@ -1,7 +1,7 @@
 """
 IMC Prosperity Round 3 strategy scaffold.
 
-Current mode: HP-only predictive mean-reversion.
+Current mode: HP-only V30 entries with midpoint over-fair exit hold.
 
 Backtest workflow:
 1. HP only: ENABLE_HP = True, every other strategy layer False.
@@ -84,12 +84,12 @@ ACTIVE_VOUCHERS: List[str] = ["VEV_5500"]
 HP_EMA_ALPHA = 0.03
 HP_FAST_EMA_ALPHA = 0.14
 HP_RETURN_EMA_ALPHA = 0.22
-HP_TRADE_THRESHOLD = 5.0
+HP_TRADE_THRESHOLD = 4.5
 HP_SPREAD_BUFFER_FRAC = 0.40
 HP_INVENTORY_PENALTY = 0.02
-HP_MAX_ORDER_SIZE = 12
+HP_MAX_ORDER_SIZE = 8
 HP_PRACTICAL_CAP = 160
-HP_STRONG_EDGE = 10.0
+HP_STRONG_EDGE = 12.0
 HP_INVENTORY_THROTTLE_START = 100
 HP_EXTEND_EDGE_PENALTY = 0.04
 HP_REDUCE_EDGE_DISCOUNT = 0.03
@@ -100,12 +100,12 @@ HP_IMBALANCE_WEIGHT = 0.08
 HP_PREDICTION_CLAMP = 4.0
 HP_RESID_WINDOW = 80
 HP_MIN_RESID_STD = 1.0
-HP_ENTRY_Z = 1.75
-HP_STRONG_Z = 2.35
-HP_BOLLINGER_MULT = 1.75
-HP_MOMENTUM_BLOCK = 0.35
-HP_EXIT_Z = 0.35
-HP_EXIT_ORDER_SIZE = 8
+HP_ENTRY_Z = 1.50
+HP_STRONG_Z = 2.00
+HP_BOLLINGER_MULT = 1.30
+HP_MOMENTUM_BLOCK = 0.20
+HP_EXIT_Z = -1.50
+HP_EXIT_ORDER_SIZE = 4
 HP_MARKET_SIGNAL_ENABLED = True
 HP_SIGNAL_QTY = 5
 HP_SIGNAL_EXTREME_TOL = 1.0
@@ -113,10 +113,10 @@ HP_SIGNAL_MAX_AGE = 90
 HP_SIGNAL_ENTRY_Z = 0.0
 HP_SIGNAL_EDGE = 0.5
 HP_SIGNAL_ORDER_SIZE = 4
-HP_SIGNAL_ONLY = True
+HP_SIGNAL_ONLY = False
 HP_SIGNAL_CLUSTER_MIN = 2
 HP_ENABLE_BEARISH_SIGNAL = False
-HP_PASSIVE_SIGNAL_ORDERS = True
+HP_PASSIVE_SIGNAL_ORDERS = False
 HP_PASSIVE_JOIN_OFFSET = 2
 HP_PASSIVE_MAX_NEGATIVE_EDGE = -3.0
 HP_PASSIVE_ORDER_SIZE = 8
@@ -126,10 +126,86 @@ HP_SIGNAL_CROSS_ORDER_SIZE = 4
 HP_BAD_BUY_QTYS = (3, 4)
 HP_BAD_CLUSTER_MIN = 3
 HP_BAD_CLUSTER_MAX_AGE = 12
-HP_SIGNAL_MAX_RICH_Z = 1.50
-HP_SIGNAL_MIN_CHEAP_Z = -0.50
-HP_BULLISH_EXIT_OVERRIDE_MAX_POS = 120
-HP_BULLISH_EXIT_OVERRIDE_MAX_Z = 1.75
+HP_SIGNAL_MAX_RICH_Z = 0.50
+HP_SIGNAL_MIN_CHEAP_Z = 0.00
+HP_BULLISH_EXIT_OVERRIDE_MAX_POS = 160
+HP_BULLISH_EXIT_OVERRIDE_MAX_Z = 3.50
+HP_LONG_ADD_CAP = 160
+HP_LONG_REDUCE_SIZE = 4
+HP_DOWNTICK_QTYS = (3, 4, 5)
+HP_DOWNTICK_CLUSTER_MIN = 2
+HP_DOWNTICK_MAX_AGE = 45
+HP_DOWNTICK_MIN_Z = 0.50
+HP_SECONDARY_BUY_QTY = 6
+HP_COMBO_MAX_AGE = 45
+HP_CAPITULATION_SELL_CLUSTER_MIN = 2
+HP_CAPITULATION_MAX_AGE = 45
+HP_CAPITULATION_CHEAP_Z = -1.0
+HP_COPY_TRADE_MODE = True
+HP_COPY_LONG_CAP = 160
+HP_COPY_ORDER_SIZE = 6
+HP_COPY_CROSS_MAX_AGE = 35
+HP_COPY_MAX_RICH_Z = 0.50
+HP_COPY_MIN_EDGE = -3.0
+HP_COPY_BAD_BLOCK_AGE = 8
+HP_NET_FLOW_ENABLED = False
+HP_NET_FLOW_MAX_WINDOW = 100
+HP_NET_FLOW_POSITIVE_50 = 10
+HP_NET_FLOW_POSITIVE_100 = 10
+HP_NET_BUY_VOLUME_50 = 10
+HP_NET_FLOW_NEGATIVE_10 = -5
+HP_NET_FLOW_NEGATIVE_25 = -10
+HP_NET_SELL_VOLUME_50 = 15
+HP_NET_FLOW_CHEAP_Z = -1.0
+HP_NET_FLOW_MAX_RICH_Z = 0.50
+HP_NET_FLOW_EXTREME_POSITIVE_25 = 15
+HP_NET_FLOW_EXTREME_POSITIVE_50 = 20
+HP_NET_FLOW_EXTREME_NEGATIVE_50 = -20
+HP_NET_SELL_VOLUME_EXTREME_50 = 20
+HP_NET_ORDER_SIZE = 2
+HP_NET_CONTRARIAN_ORDER_SIZE = 2
+HP_NET_LONG_CAP = 25
+HP_AGGRESSIVE_EXTREME_MODE = False
+HP_AGGRESSIVE_TROUGH_TARGET = 60
+HP_AGGRESSIVE_TROUGH_MAX_AGE = 45
+HP_AGGRESSIVE_TROUGH_MAX_RICH_Z = 2.25
+HP_AGGRESSIVE_TROUGH_MIN_EDGE = -10.0
+HP_AGGRESSIVE_PEAK_MAX_AGE = 45
+HP_AGGRESSIVE_PEAK_MIN_SELL_Z = 0.35
+HP_AGGRESSIVE_PEAK_MIN_EDGE = -10.0
+HP_NO_LOSS_SELL_ENABLED = True
+HP_MIN_SELL_PROFIT_TICKS = 1
+HP_STAGED_ENTRY_MODE = True
+HP_TROUGH_STAGE_1_TARGET = 40
+HP_TROUGH_STAGE_2_TARGET = 90
+HP_TROUGH_STAGE_3_TARGET = 140
+HP_TROUGH_FULL_TARGET = 160
+HP_STAGE_2_RETURN_EMA = -0.05
+HP_STAGE_3_RETURN_EMA = 0.00
+HP_FULL_STAGE_RETURN_EMA = 0.10
+HP_UNDERWATER_LOCKOUT_TICKS = 8
+HP_HARD_INVALIDATION_TICKS = 15
+HP_HARD_INVALIDATION_MIN_POS = 80
+HP_HARD_INVALIDATION_REDUCE_SIZE = 6
+HP_HARD_INVALIDATION_ALLOW_LOSS = False
+HP_CONFIDENCE_SCALING = True
+HP_CONF_WEAK_SCORE = 4
+HP_CONF_GOOD_SCORE = 6
+HP_CONF_STRONG_SCORE = 8
+HP_CONF_MAX_SCORE = 10
+HP_CONF_WEAK_TARGET = 80
+HP_CONF_GOOD_TARGET = 120
+HP_CONF_STRONG_TARGET = 160
+HP_CONF_MAX_TARGET = 180
+HP_CONF_WEAK_ORDER = 8
+HP_CONF_GOOD_ORDER = 16
+HP_CONF_STRONG_ORDER = 30
+HP_CONF_MAX_ORDER = 40
+HP_CONF_SWEEP_ENABLED = True
+HP_CONF_SWEEP_MIN_SCORE = 6
+HP_CONF_SWEEP_MIN_EDGE = -1.0
+HP_CONF_SWEEP_GOOD_LEVELS = 2
+HP_CONF_SWEEP_STRONG_LEVELS = 3
 
 VFE_EMA_ALPHA = 0.03
 VFE_VOL_WINDOW = 80
@@ -297,6 +373,12 @@ def clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
+def rolling_sum(values: List[int], window: int) -> int:
+    if not values:
+        return 0
+    return int(sum(values[-window:]))
+
+
 def hp_prediction_fair(
     state: Dict[str, Any],
     observed_mid: float,
@@ -357,6 +439,10 @@ def load_state(blob: str) -> Dict[str, Any]:
         "vfe_stats": {},
         "hp_prediction": {},
         "hp_market_signal": {},
+        "hp_seen_own_trade_keys": [],
+        "hp_last_buy_price": None,
+        "hp_last_buy_ts": None,
+        "hp_prev_position": 0,
         "day_index": 0,
         "last_ts": -1,
     }
@@ -383,11 +469,14 @@ def load_state(blob: str) -> Dict[str, Any]:
         default["hp_prediction"] = {}
     if not isinstance(default["hp_market_signal"], dict):
         default["hp_market_signal"] = {}
+    if not isinstance(default["hp_seen_own_trade_keys"], list):
+        default["hp_seen_own_trade_keys"] = []
     return default
 
 
 def save_state(state: Dict[str, Any]) -> str:
     state["debug_logs"] = state.get("debug_logs", [])[-MAX_DEBUG_LOGS:]
+    state["hp_seen_own_trade_keys"] = state.get("hp_seen_own_trade_keys", [])[-200:]
     return json.dumps(state, separators=(",", ":"))
 
 
@@ -442,6 +531,20 @@ def hp_trade_direction(price: float, best_bid: int, best_ask: int) -> str:
     return "MID"
 
 
+def hp_signed_trade_qty(price: float, qty: int, best_bid: int, best_ask: int) -> int:
+    direction = hp_trade_direction(price, best_bid, best_ask)
+    if direction == "BUY":
+        return qty
+    if direction == "SELL":
+        return -qty
+    mid = (best_bid + best_ask) / 2.0
+    if price > mid:
+        return qty
+    if price < mid:
+        return -qty
+    return 0
+
+
 def update_hp_market_signal(
     state: Dict[str, Any],
     trading_state: TradingState,
@@ -458,6 +561,9 @@ def update_hp_market_signal(
         signal["high"] = observed_mid
         signal["active"] = 0
         signal["age"] = HP_SIGNAL_MAX_AGE + 1
+        signal["net_flow_history"] = []
+        signal["buy_flow_history"] = []
+        signal["sell_flow_history"] = []
 
     low = float(signal.get("low", observed_mid))
     high = float(signal.get("high", observed_mid))
@@ -479,21 +585,47 @@ def update_hp_market_signal(
     bear_cluster = max(0, int(signal.get("bear_cluster", 0)) - 1)
     bad_buy_cluster = max(0, int(signal.get("bad_buy_cluster", 0)) - 1)
     bad_buy_age = int(signal.get("bad_buy_age", HP_BAD_CLUSTER_MAX_AGE + 1)) + 1
+    downtick_cluster = max(0, int(signal.get("downtick_cluster", 0)) - 1)
+    downtick_age = int(signal.get("downtick_age", HP_DOWNTICK_MAX_AGE + 1)) + 1
+    qty6_buy_cluster = max(0, int(signal.get("qty6_buy_cluster", 0)) - 1)
+    combo_age = int(signal.get("combo_age", HP_COMBO_MAX_AGE + 1)) + 1
+    capitulation_age = int(signal.get("capitulation_age", HP_CAPITULATION_MAX_AGE + 1)) + 1
+    peak_sell_age = int(signal.get("peak_sell_age", HP_AGGRESSIVE_PEAK_MAX_AGE + 1)) + 1
+    net_flow_history = signal.get("net_flow_history", [])
+    buy_flow_history = signal.get("buy_flow_history", [])
+    sell_flow_history = signal.get("sell_flow_history", [])
+    if not isinstance(net_flow_history, list):
+        net_flow_history = []
+    if not isinstance(buy_flow_history, list):
+        buy_flow_history = []
+    if not isinstance(sell_flow_history, list):
+        sell_flow_history = []
     market_trades = trading_state.market_trades.get(HP, []) if trading_state.market_trades else []
     trade_key = "|".join(
         f"{getattr(t, 'timestamp', trading_state.timestamp)}:{getattr(t, 'price', 0)}:{getattr(t, 'quantity', 0)}"
         for t in market_trades
     )
+    tick_net_flow = 0
+    tick_buy_flow = 0
+    tick_sell_flow = 0
     if market_trades and trade_key != signal.get("last_trade_key"):
         near_low = prev_mid is not None and float(prev_mid) <= low + HP_SIGNAL_EXTREME_TOL
         near_high = prev_mid is not None and float(prev_mid) >= high - HP_SIGNAL_EXTREME_TOL
         qty5_buys = 0
         qty5_sells = 0
         bad_buys = 0
+        downtick_sells = 0
+        qty6_buys = 0
         for trade in market_trades:
             qty = abs(int(getattr(trade, "quantity", 0) or 0))
             price = float(getattr(trade, "price", 0) or 0)
             direction = hp_trade_direction(price, ref_bid, ref_ask)
+            signed_qty = hp_signed_trade_qty(price, qty, ref_bid, ref_ask)
+            tick_net_flow += signed_qty
+            if signed_qty > 0:
+                tick_buy_flow += signed_qty
+            elif signed_qty < 0:
+                tick_sell_flow += -signed_qty
             if qty == HP_SIGNAL_QTY:
                 if direction == "BUY":
                     qty5_buys += 1
@@ -501,6 +633,10 @@ def update_hp_market_signal(
                     qty5_sells += 1
             elif qty in HP_BAD_BUY_QTYS and direction == "BUY":
                 bad_buys += 1
+            if qty in HP_DOWNTICK_QTYS and direction == "SELL":
+                downtick_sells += 1
+            if qty == HP_SECONDARY_BUY_QTY and direction == "BUY":
+                qty6_buys += 1
 
         # Olivia-style fingerprint: same-sized public trade at a daily extreme,
         # with direction matching the expected informed behavior.
@@ -517,6 +653,10 @@ def update_hp_market_signal(
         bull_cluster += qty5_buys
         bear_cluster += qty5_sells
         bad_buy_cluster += bad_buys
+        downtick_cluster += downtick_sells
+        qty6_buy_cluster += qty6_buys
+        if downtick_cluster >= HP_DOWNTICK_CLUSTER_MIN:
+            downtick_age = 0
         if bad_buy_cluster >= HP_BAD_CLUSTER_MIN:
             bad_buy_age = 0
             if active > 0:
@@ -525,6 +665,16 @@ def update_hp_market_signal(
             active = 1
             age = 0
             anchor = float(prev_mid if prev_mid is not None else observed_mid)
+        elif bull_cluster >= 1 and qty6_buy_cluster >= 1 and bad_buy_cluster < HP_BAD_CLUSTER_MIN:
+            active = 1
+            combo_age = 0
+            anchor = float(prev_mid if prev_mid is not None else observed_mid)
+        if bear_cluster >= HP_CAPITULATION_SELL_CLUSTER_MIN:
+            capitulation_age = 0
+        if qty5_sells >= 1 and near_high:
+            peak_sell_age = 0
+        elif bear_cluster >= HP_SIGNAL_CLUSTER_MIN and near_high:
+            peak_sell_age = 0
         elif HP_ENABLE_BEARISH_SIGNAL and bear_cluster >= HP_SIGNAL_CLUSTER_MIN and active <= 0:
             active = -1
             age = 0
@@ -533,7 +683,25 @@ def update_hp_market_signal(
         signal["bear_cluster"] = bear_cluster
         signal["bad_buy_cluster"] = bad_buy_cluster
         signal["bad_buy_age"] = bad_buy_age
+        signal["downtick_cluster"] = downtick_cluster
+        signal["downtick_age"] = downtick_age
+        signal["qty6_buy_cluster"] = qty6_buy_cluster
+        signal["combo_age"] = combo_age
+        signal["capitulation_age"] = capitulation_age
+        signal["peak_sell_age"] = peak_sell_age
         signal["last_trade_key"] = trade_key
+
+    if signal.get("last_flow_ts") != trading_state.timestamp:
+        net_flow_history.append(tick_net_flow)
+        buy_flow_history.append(tick_buy_flow)
+        sell_flow_history.append(tick_sell_flow)
+        if len(net_flow_history) > HP_NET_FLOW_MAX_WINDOW:
+            del net_flow_history[: len(net_flow_history) - HP_NET_FLOW_MAX_WINDOW]
+        if len(buy_flow_history) > HP_NET_FLOW_MAX_WINDOW:
+            del buy_flow_history[: len(buy_flow_history) - HP_NET_FLOW_MAX_WINDOW]
+        if len(sell_flow_history) > HP_NET_FLOW_MAX_WINDOW:
+            del sell_flow_history[: len(sell_flow_history) - HP_NET_FLOW_MAX_WINDOW]
+        signal["last_flow_ts"] = trading_state.timestamp
 
     low = min(low, observed_mid)
     high = max(high, observed_mid)
@@ -551,6 +719,25 @@ def update_hp_market_signal(
         "bear_cluster": bear_cluster,
         "bad_buy_cluster": bad_buy_cluster,
         "bad_buy_age": bad_buy_age,
+        "downtick_cluster": downtick_cluster,
+        "downtick_age": downtick_age,
+        "qty6_buy_cluster": qty6_buy_cluster,
+        "combo_age": combo_age,
+        "capitulation_age": capitulation_age,
+        "peak_sell_age": peak_sell_age,
+        "net_flow_history": net_flow_history,
+        "buy_flow_history": buy_flow_history,
+        "sell_flow_history": sell_flow_history,
+        "net10": rolling_sum(net_flow_history, 10),
+        "net25": rolling_sum(net_flow_history, 25),
+        "net50": rolling_sum(net_flow_history, 50),
+        "net100": rolling_sum(net_flow_history, 100),
+        "buy50": rolling_sum(buy_flow_history, 50),
+        "buy100": rolling_sum(buy_flow_history, 100),
+        "sell10": rolling_sum(sell_flow_history, 10),
+        "sell25": rolling_sum(sell_flow_history, 25),
+        "sell50": rolling_sum(sell_flow_history, 50),
+        "sell100": rolling_sum(sell_flow_history, 100),
     })
     return signal
 
@@ -571,6 +758,97 @@ def hp_signal_skip_reason(
     )
 
 
+def hp_own_trade_side(trade: Any) -> Optional[str]:
+    buyer = str(getattr(trade, "buyer", "") or "").upper()
+    seller = str(getattr(trade, "seller", "") or "").upper()
+    if buyer == "SUBMISSION":
+        return "BUY"
+    if seller == "SUBMISSION":
+        return "SELL"
+    return None
+
+
+def update_hp_entry_tracker(state: Dict[str, Any], trading_state: TradingState, position: int) -> None:
+    prev_position = int(state.get("hp_prev_position", 0) or 0)
+    position_delta = position - prev_position
+    fallback_side: Optional[str] = None
+    if position_delta > 0:
+        fallback_side = "BUY"
+    elif position_delta < 0:
+        fallback_side = "SELL"
+    seen_list = state.setdefault("hp_seen_own_trade_keys", [])
+    if not isinstance(seen_list, list):
+        seen_list = []
+        state["hp_seen_own_trade_keys"] = seen_list
+    seen = set(str(x) for x in seen_list[-200:])
+    own_trades = trading_state.own_trades.get(HP, []) if getattr(trading_state, "own_trades", None) else []
+    for trade in own_trades:
+        price = int(getattr(trade, "price", 0) or 0)
+        qty = abs(int(getattr(trade, "quantity", 0) or 0))
+        ts = int(getattr(trade, "timestamp", trading_state.timestamp) or 0)
+        side = hp_own_trade_side(trade)
+        if side is None:
+            side = fallback_side
+        key = f"{ts}:{side}:{price}:{qty}:{getattr(trade, 'buyer', '')}:{getattr(trade, 'seller', '')}"
+        if side is None or key in seen or qty <= 0 or price <= 0:
+            continue
+        seen.add(key)
+        seen_list.append(key)
+        if side == "BUY":
+            state["hp_last_buy_price"] = price
+            state["hp_last_buy_ts"] = ts
+        elif side == "SELL" and position <= 0:
+            state["hp_last_buy_price"] = None
+            state["hp_last_buy_ts"] = None
+    if position <= 0:
+        state["hp_last_buy_price"] = None
+        state["hp_last_buy_ts"] = None
+    state["hp_prev_position"] = position
+
+
+def hp_min_sell_price(state: Dict[str, Any]) -> Optional[int]:
+    if not HP_NO_LOSS_SELL_ENABLED:
+        return None
+    last_buy = state.get("hp_last_buy_price")
+    if last_buy is None:
+        return None
+    return int(math.ceil(float(last_buy) + HP_MIN_SELL_PROFIT_TICKS))
+
+
+def hp_protected_sell_price(state: Dict[str, Any], desired_price: int) -> Tuple[int, bool, Optional[int]]:
+    min_price = hp_min_sell_price(state)
+    if min_price is None or desired_price >= min_price:
+        return desired_price, False, min_price
+    return min_price, True, min_price
+
+
+def hp_staged_trough_target(
+    buy_z: float,
+    return_ema: float,
+    net10: int,
+    net50: int,
+    bullish_flow: bool,
+    secondary_bullish_flow: bool,
+    capitulation_bullish_flow: bool,
+    net_contrarian_flow: bool,
+) -> int:
+    if not HP_STAGED_ENTRY_MODE:
+        return min(POSITION_LIMITS[HP], HP_AGGRESSIVE_TROUGH_TARGET)
+
+    target = HP_TROUGH_STAGE_1_TARGET
+    if return_ema >= HP_STAGE_2_RETURN_EMA or net10 > 0 or bullish_flow or secondary_bullish_flow:
+        target = HP_TROUGH_STAGE_2_TARGET
+    if (
+        return_ema >= HP_STAGE_3_RETURN_EMA
+        and net50 >= 0
+        and (bullish_flow or secondary_bullish_flow or capitulation_bullish_flow or net_contrarian_flow)
+    ):
+        target = HP_TROUGH_STAGE_3_TARGET
+    if return_ema >= HP_FULL_STAGE_RETURN_EMA and net50 >= 5 and buy_z <= HP_NET_FLOW_CHEAP_Z:
+        target = HP_TROUGH_FULL_TARGET
+    return min(POSITION_LIMITS[HP], target)
+
+
 def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]:
     depth = trading_state.order_depths.get(HP)
     if depth is None:
@@ -586,6 +864,7 @@ def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]
     imbalance = order_book_imbalance(depth)
     fair, prediction = hp_prediction_fair(state, observed, micro, imbalance, spread)
     position = trading_state.position.get(HP, 0)
+    update_hp_entry_tracker(state, trading_state, position)
     adjusted = inventory_adjusted_fair(fair, position, HP_INVENTORY_PENALTY)
     residual = observed - adjusted
     rolling_std = max(
@@ -604,6 +883,7 @@ def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]
     sell_edge = best_bid - adjusted
     buy_z = (best_ask - adjusted) / rolling_std
     sell_z = (best_bid - adjusted) / rolling_std
+    min_sell_price = hp_min_sell_price(state)
     lower_band = adjusted - HP_BOLLINGER_MULT * rolling_std
     upper_band = adjusted + HP_BOLLINGER_MULT * rolling_std
     return_ema = prediction["return_ema"]
@@ -613,14 +893,234 @@ def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]
     signal_active = int(market_signal.get("active", 0) or 0)
     signal_age = int(market_signal.get("age", HP_SIGNAL_MAX_AGE + 1) or 0)
     bad_buy_age = int(market_signal.get("bad_buy_age", HP_BAD_CLUSTER_MAX_AGE + 1) or 0)
+    downtick_age = int(market_signal.get("downtick_age", HP_DOWNTICK_MAX_AGE + 1) or 0)
+    combo_age = int(market_signal.get("combo_age", HP_COMBO_MAX_AGE + 1) or 0)
+    capitulation_age = int(market_signal.get("capitulation_age", HP_CAPITULATION_MAX_AGE + 1) or 0)
+    peak_sell_age = int(market_signal.get("peak_sell_age", HP_AGGRESSIVE_PEAK_MAX_AGE + 1) or 0)
+    net10 = int(market_signal.get("net10", 0) or 0)
+    net25 = int(market_signal.get("net25", 0) or 0)
+    net50 = int(market_signal.get("net50", 0) or 0)
+    net100 = int(market_signal.get("net100", 0) or 0)
+    buy50 = int(market_signal.get("buy50", 0) or 0)
+    sell10 = int(market_signal.get("sell10", 0) or 0)
+    sell25 = int(market_signal.get("sell25", 0) or 0)
+    sell50 = int(market_signal.get("sell50", 0) or 0)
     bullish_flow = signal_active > 0 and signal_age <= HP_SIGNAL_MAX_AGE
     bearish_flow = signal_active < 0 and signal_age <= HP_SIGNAL_MAX_AGE
     bad_buy_active = bad_buy_age <= HP_BAD_CLUSTER_MAX_AGE
+    market_downtick = downtick_age <= HP_DOWNTICK_MAX_AGE
+    secondary_bullish_flow = combo_age <= HP_COMBO_MAX_AGE
+    capitulation_bullish_flow = capitulation_age <= HP_CAPITULATION_MAX_AGE and buy_z <= HP_CAPITULATION_CHEAP_Z
+    net_momentum_flow = (
+        HP_NET_FLOW_ENABLED
+        and buy_z <= HP_NET_FLOW_MAX_RICH_Z
+        and (
+            net50 >= HP_NET_FLOW_POSITIVE_50
+            or net100 >= HP_NET_FLOW_POSITIVE_100
+            or (buy50 >= HP_NET_BUY_VOLUME_50 and net50 > 0)
+        )
+    )
+    net_contrarian_flow = (
+        HP_NET_FLOW_ENABLED
+        and buy_z <= HP_NET_FLOW_CHEAP_Z
+        and (
+            net10 <= HP_NET_FLOW_NEGATIVE_10
+            or net25 <= HP_NET_FLOW_NEGATIVE_25
+            or sell50 >= HP_NET_SELL_VOLUME_50
+        )
+    )
+    net_exhaustion_block = (
+        HP_NET_FLOW_ENABLED
+        and (
+            net25 >= HP_NET_FLOW_EXTREME_POSITIVE_25
+            or net50 >= HP_NET_FLOW_EXTREME_POSITIVE_50
+            or net50 <= HP_NET_FLOW_EXTREME_NEGATIVE_50
+            or sell50 >= HP_NET_SELL_VOLUME_EXTREME_50
+        )
+    )
+    net_bullish_flow = (net_momentum_flow or net_contrarian_flow) and not net_exhaustion_block
+    copy_bad_block = bad_buy_age <= HP_COPY_BAD_BLOCK_AGE and not net_contrarian_flow
+    last_buy_price = state.get("hp_last_buy_price")
+    underwater_ticks = 0.0 if last_buy_price is None else float(last_buy_price) - observed
+    underwater_buy_lockout = position > 0 and underwater_ticks >= HP_UNDERWATER_LOCKOUT_TICKS
+    hard_invalidation = (
+        position >= HP_HARD_INVALIDATION_MIN_POS
+        and underwater_ticks >= HP_HARD_INVALIDATION_TICKS
+        and (return_ema < -HP_MOMENTUM_BLOCK or net_exhaustion_block or market_downtick)
+    )
+    new_buy_block = underwater_buy_lockout or hard_invalidation
+    staged_trough_target = hp_staged_trough_target(
+        buy_z,
+        return_ema,
+        net10,
+        net50,
+        bullish_flow,
+        secondary_bullish_flow,
+        capitulation_bullish_flow,
+        net_contrarian_flow,
+    )
+    buy_confidence = 0
+    if buy_z <= 0.50:
+        buy_confidence += 1
+    if buy_z <= 0.00:
+        buy_confidence += 1
+    if buy_z <= -0.50:
+        buy_confidence += 1
+    if buy_z <= -1.00:
+        buy_confidence += 1
+    if buy_z <= -1.50:
+        buy_confidence += 1
+    if buy_edge >= -1.0:
+        buy_confidence += 1
+    if buy_edge >= 2.0:
+        buy_confidence += 1
+    if buy_edge >= 5.0:
+        buy_confidence += 1
+    if bullish_flow:
+        buy_confidence += 2 if signal_age <= 20 else 1
+    if secondary_bullish_flow:
+        buy_confidence += 1
+    if capitulation_bullish_flow:
+        buy_confidence += 2
+    if net_bullish_flow:
+        buy_confidence += 1
+    if return_ema >= 0.0:
+        buy_confidence += 1
+    if return_ema >= 0.10:
+        buy_confidence += 1
+    if prediction["predicted_move"] >= 0.0:
+        buy_confidence += 1
+    if copy_bad_block:
+        buy_confidence -= 3
+    if bad_buy_active:
+        buy_confidence -= 2
+    if net_exhaustion_block:
+        buy_confidence -= 4
+    if underwater_buy_lockout:
+        buy_confidence -= 3
+    if market_downtick and return_ema < 0:
+        buy_confidence -= 2
+    if position >= 120:
+        buy_confidence -= 1
+    if position >= 160:
+        buy_confidence -= 2
+    buy_confidence = max(0, buy_confidence)
+
+    confidence_target = staged_trough_target
+    confidence_order_size = HP_COPY_ORDER_SIZE
+    if HP_CONFIDENCE_SCALING:
+        if buy_confidence >= HP_CONF_MAX_SCORE:
+            confidence_target = HP_CONF_MAX_TARGET
+            confidence_order_size = HP_CONF_MAX_ORDER
+        elif buy_confidence >= HP_CONF_STRONG_SCORE:
+            confidence_target = HP_CONF_STRONG_TARGET
+            confidence_order_size = HP_CONF_STRONG_ORDER
+        elif buy_confidence >= HP_CONF_GOOD_SCORE:
+            confidence_target = HP_CONF_GOOD_TARGET
+            confidence_order_size = HP_CONF_GOOD_ORDER
+        elif buy_confidence >= HP_CONF_WEAK_SCORE:
+            confidence_target = HP_CONF_WEAK_TARGET
+            confidence_order_size = HP_CONF_WEAK_ORDER
+        else:
+            confidence_order_size = HP_COPY_ORDER_SIZE
+        confidence_target = min(POSITION_LIMITS[HP], max(staged_trough_target, confidence_target))
+
+    buy_order_price = best_ask
+    buy_order_edge = buy_edge
+    if HP_CONF_SWEEP_ENABLED and buy_confidence >= HP_CONF_SWEEP_MIN_SCORE:
+        max_levels = HP_CONF_SWEEP_STRONG_LEVELS if buy_confidence >= HP_CONF_STRONG_SCORE else HP_CONF_SWEEP_GOOD_LEVELS
+        affordable_asks = [
+            price
+            for price in sorted(depth.sell_orders)
+            if adjusted - price >= HP_CONF_SWEEP_MIN_EDGE
+        ]
+        if affordable_asks:
+            buy_order_price = affordable_asks[min(max_levels - 1, len(affordable_asks) - 1)]
+            buy_order_edge = adjusted - buy_order_price
+
+    aggressive_peak_sell_signal = (
+        HP_AGGRESSIVE_EXTREME_MODE
+        and position > 0
+        and peak_sell_age <= HP_AGGRESSIVE_PEAK_MAX_AGE
+        and sell_z >= HP_AGGRESSIVE_PEAK_MIN_SELL_Z
+        and sell_edge >= HP_AGGRESSIVE_PEAK_MIN_EDGE
+    )
+    aggressive_trough_buy_signal = (
+        HP_AGGRESSIVE_EXTREME_MODE
+        and position < staged_trough_target
+        and not new_buy_block
+        and not net_exhaustion_block
+        and not copy_bad_block
+        and buy_z <= HP_AGGRESSIVE_TROUGH_MAX_RICH_Z
+        and buy_edge >= HP_AGGRESSIVE_TROUGH_MIN_EDGE
+        and (
+            (bullish_flow and signal_age <= HP_AGGRESSIVE_TROUGH_MAX_AGE)
+            or (secondary_bullish_flow and combo_age <= HP_AGGRESSIVE_TROUGH_MAX_AGE)
+            or capitulation_bullish_flow
+            or net_contrarian_flow
+        )
+    )
+    copy_bullish_flow = (
+        bullish_flow
+        or secondary_bullish_flow
+        or capitulation_bullish_flow
+        or net_bullish_flow
+    )
+    copy_signal_age = min(
+        signal_age if bullish_flow else HP_COPY_CROSS_MAX_AGE + 1,
+        combo_age if secondary_bullish_flow else HP_COPY_CROSS_MAX_AGE + 1,
+        capitulation_age if capitulation_bullish_flow else HP_COPY_CROSS_MAX_AGE + 1,
+        0 if net_bullish_flow else HP_COPY_CROSS_MAX_AGE + 1,
+    )
+    copy_long_cap = (
+        HP_NET_LONG_CAP
+        if net_bullish_flow and not (bullish_flow or secondary_bullish_flow or capitulation_bullish_flow)
+        else HP_COPY_LONG_CAP
+    )
+    if HP_STAGED_ENTRY_MODE:
+        copy_long_cap = min(copy_long_cap, staged_trough_target)
+    if HP_CONFIDENCE_SCALING and buy_confidence >= HP_CONF_WEAK_SCORE:
+        copy_long_cap = min(POSITION_LIMITS[HP], max(copy_long_cap, confidence_target))
+    passive_long_add_cap = min(HP_LONG_ADD_CAP, staged_trough_target) if HP_STAGED_ENTRY_MODE else HP_LONG_ADD_CAP
+    if HP_CONFIDENCE_SCALING and buy_confidence >= HP_CONF_WEAK_SCORE:
+        passive_long_add_cap = min(POSITION_LIMITS[HP], max(passive_long_add_cap, confidence_target))
+    copy_long_signal = (
+        HP_COPY_TRADE_MODE
+        and copy_bullish_flow
+        and not copy_bad_block
+        and not net_exhaustion_block
+        and not new_buy_block
+        and copy_signal_age <= HP_COPY_CROSS_MAX_AGE
+        and buy_z <= HP_COPY_MAX_RICH_Z
+        and buy_edge >= HP_COPY_MIN_EDGE
+        and buy_confidence >= HP_CONF_WEAK_SCORE
+        and position < copy_long_cap
+    )
     mean_reversion_ok = buy_z <= HP_SIGNAL_MAX_RICH_Z
     mean_reversion_good = buy_z <= HP_SIGNAL_MIN_CHEAP_Z
-    signal_label = f"flow={signal_active}_age={signal_age}_bad_buy_age={bad_buy_age}"
+    upward_mean_reversion = (
+        (bullish_flow or secondary_bullish_flow or capitulation_bullish_flow or net_bullish_flow)
+        and not bad_buy_active
+        and not new_buy_block
+        and buy_z <= HP_SIGNAL_MAX_RICH_Z
+    )
+    downward_mean_reversion = market_downtick and sell_z >= HP_DOWNTICK_MIN_Z
+    signal_label = (
+        f"flow={signal_active}_age={signal_age}_combo_age={combo_age}"
+        f"_cap_age={capitulation_age}_peak_sell_age={peak_sell_age}"
+        f"_bad_buy_age={bad_buy_age}_down_age={downtick_age}"
+        f"_net10={net10}_net25={net25}_net50={net50}_net100={net100}"
+        f"_buy50={buy50}_sell10={sell10}_sell25={sell25}_sell50={sell50}"
+        f"_net_mom={int(net_momentum_flow)}_net_contra={int(net_contrarian_flow)}"
+        f"_net_block={int(net_exhaustion_block)}"
+        f"_aggr_trough={int(aggressive_trough_buy_signal)}_aggr_peak={int(aggressive_peak_sell_signal)}"
+        f"_stage_target={staged_trough_target}_uw={underwater_ticks:.1f}"
+        f"_buy_lockout={int(underwater_buy_lockout)}_hard_invalid={int(hard_invalidation)}"
+        f"_conf={buy_confidence}_conf_target={confidence_target}_conf_order={confidence_order_size}"
+        f"_min_sell={min_sell_price}"
+    )
     bullish_exit_override = (
-        bullish_flow
+        (bullish_flow or net_bullish_flow)
         and not bad_buy_active
         and position < HP_BULLISH_EXIT_OVERRIDE_MAX_POS
         and sell_z < HP_BULLISH_EXIT_OVERRIDE_MAX_Z
@@ -628,14 +1128,73 @@ def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]
     long_exit = position > 0 and not bullish_exit_override and (sell_z >= -HP_EXIT_Z or (bearish_flow and sell_edge > -HP_SIGNAL_EDGE))
     short_exit = position < 0 and (buy_z <= HP_EXIT_Z or (bullish_flow and buy_edge > -HP_SIGNAL_EDGE))
 
-    if long_exit:
+    if hard_invalidation:
+        desired = min(HP_HARD_INVALIDATION_REDUCE_SIZE, max(0, position - HP_TROUGH_STAGE_1_TARGET))
+        size = position_safe_sell_size(HP, desired, position, POSITION_LIMITS[HP], POSITION_LIMITS[HP])
+        size = min(size, position)
+        if HP_HARD_INVALIDATION_ALLOW_LOSS:
+            sell_price = best_bid
+            protected = False
+        else:
+            sell_price, protected, _min_sell = hp_protected_sell_price(state, best_bid)
+        order_edge = sell_price - adjusted
+        reason = f"HP_HARD_INVALIDATION_REDUCE_uw={underwater_ticks:.1f}_sell_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={order_edge:.2f}_protected={int(protected)}_ret_ema={return_ema:.2f}"
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, order_edge, position, -size, reason)
+        if size > 0:
+            orders.append(Order(HP, sell_price, -size))
+    elif aggressive_peak_sell_signal:
+        desired = position
+        size = position_safe_sell_size(HP, desired, position, POSITION_LIMITS[HP], POSITION_LIMITS[HP])
+        size = min(size, position)
+        sell_price, protected, _min_sell = hp_protected_sell_price(state, best_bid)
+        order_edge = sell_price - adjusted
+        reason = f"HP_AGGRESSIVE_PEAK_DUMP_sell_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={order_edge:.2f}_protected={int(protected)}_ret_ema={return_ema:.2f}"
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, order_edge, position, -size, reason)
+        if size > 0:
+            orders.append(Order(HP, sell_price, -size))
+    elif aggressive_trough_buy_signal:
+        target = staged_trough_target
+        desired = max(0, target - position)
+        size = position_safe_buy_size(HP, desired, position, POSITION_LIMITS[HP], target)
+        reason = f"HP_STAGED_TROUGH_BUY_TARGET_{target}_z={buy_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={buy_order_edge:.2f}_ret_ema={return_ema:.2f}_buy_px={buy_order_price}"
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, buy_order_edge, position, size, reason)
+        if size > 0:
+            orders.append(Order(HP, buy_order_price, size))
+    elif copy_long_signal:
+        if net_contrarian_flow:
+            desired = HP_NET_CONTRARIAN_ORDER_SIZE
+        elif net_momentum_flow and not (bullish_flow or secondary_bullish_flow or capitulation_bullish_flow):
+            desired = HP_NET_ORDER_SIZE
+        else:
+            desired = HP_COPY_ORDER_SIZE
+        if capitulation_bullish_flow or (mean_reversion_good and not net_momentum_flow):
+            desired = int(HP_COPY_ORDER_SIZE * 1.5)
+        desired = max(desired, confidence_order_size)
+        size = position_safe_buy_size(HP, desired, position, POSITION_LIMITS[HP], copy_long_cap)
+        reason = f"HP_COPY_BUY_signal_z={buy_z:.2f}_std={rolling_std:.2f}_copy_age={copy_signal_age}_{signal_label}_edge={buy_order_edge:.2f}_ret_ema={return_ema:.2f}_buy_px={buy_order_price}"
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, buy_order_edge, position, size, reason)
+        if size > 0:
+            orders.append(Order(HP, buy_order_price, size))
+    elif position > 0 and downward_mean_reversion and not copy_bullish_flow:
+        desired = min(HP_LONG_REDUCE_SIZE, position)
+        size = position_safe_sell_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
+        size = min(size, position)
+        sell_price, protected, _min_sell = hp_protected_sell_price(state, best_bid)
+        order_edge = sell_price - adjusted
+        reason = f"HP_REDUCE_LONG_down_reversion_sell_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={order_edge:.2f}_protected={int(protected)}_ret_ema={return_ema:.2f}"
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, order_edge, position, -size, reason)
+        if size > 0:
+            orders.append(Order(HP, sell_price, -size))
+    elif long_exit:
         desired = min(HP_EXIT_ORDER_SIZE, position)
         size = position_safe_sell_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
         size = min(size, position)
-        reason = f"HP_EXIT_LONG_resid_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_ret_ema={return_ema:.2f}_pred_move={prediction['predicted_move']:.2f}"
-        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, sell_edge, position, -size, reason)
+        sell_price, protected, _min_sell = hp_protected_sell_price(state, best_bid)
+        order_edge = sell_price - adjusted
+        reason = f"HP_EXIT_LONG_resid_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={order_edge:.2f}_protected={int(protected)}_ret_ema={return_ema:.2f}_pred_move={prediction['predicted_move']:.2f}"
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, order_edge, position, -size, reason)
         if size > 0:
-            orders.append(Order(HP, best_bid, -size))
+            orders.append(Order(HP, sell_price, -size))
     elif short_exit:
         desired = min(HP_EXIT_ORDER_SIZE, -position)
         size = position_safe_buy_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
@@ -644,14 +1203,14 @@ def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]
         log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, buy_edge, position, size, reason)
         if size > 0:
             orders.append(Order(HP, best_ask, size))
-    elif HP_PASSIVE_SIGNAL_ORDERS and bullish_flow and not bad_buy_active and mean_reversion_ok and position < 0.60 * POSITION_LIMITS[HP]:
+    elif HP_PASSIVE_SIGNAL_ORDERS and upward_mean_reversion and position < passive_long_add_cap:
         passive_price = min(best_ask - 1, best_bid + HP_PASSIVE_JOIN_OFFSET)
         passive_edge = adjusted - passive_price
         should_cross = signal_age <= HP_SIGNAL_CROSS_MAX_AGE and mean_reversion_good and buy_edge >= HP_SIGNAL_CROSS_MIN_EDGE
         order_price = best_ask if should_cross else int(passive_price)
         order_edge = buy_edge if should_cross else passive_edge
         desired = HP_SIGNAL_CROSS_ORDER_SIZE if should_cross else HP_PASSIVE_ORDER_SIZE
-        size = position_safe_buy_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
+        size = position_safe_buy_size(HP, desired, position, POSITION_LIMITS[HP], passive_long_add_cap)
         if order_edge >= HP_PASSIVE_MAX_NEGATIVE_EDGE and size > 0:
             mode = "cross" if should_cross else "inside"
             reason = f"HP_BUY_{mode}_signal_resid_z={buy_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={order_edge:.2f}_ret_ema={return_ema:.2f}"
@@ -660,50 +1219,56 @@ def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]
         else:
             reason = hp_signal_skip_reason("BUY", signal_active, signal_age, order_edge, position)
             log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, order_edge, position, 0, reason)
-    elif bullish_flow and not bad_buy_active and mean_reversion_ok and buy_edge > HP_SIGNAL_EDGE and position < 0.60 * POSITION_LIMITS[HP]:
+    elif upward_mean_reversion and buy_edge > HP_SIGNAL_EDGE and position < passive_long_add_cap:
         desired = HP_SIGNAL_ORDER_SIZE
-        size = position_safe_buy_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
-        reason = f"HP_BUY_signal_only_resid_z={buy_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={buy_edge:.2f}_ret_ema={return_ema:.2f}"
-        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, buy_edge, position, size, reason)
+        size = position_safe_buy_size(HP, desired, position, POSITION_LIMITS[HP], passive_long_add_cap)
+        reason = f"HP_BUY_signal_only_resid_z={buy_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={buy_order_edge:.2f}_ret_ema={return_ema:.2f}_buy_px={buy_order_price}"
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, buy_order_edge, position, size, reason)
         if size > 0:
-            orders.append(Order(HP, best_ask, size))
+            orders.append(Order(HP, buy_order_price, size))
     elif HP_PASSIVE_SIGNAL_ORDERS and HP_ENABLE_BEARISH_SIGNAL and bearish_flow and position > -0.60 * POSITION_LIMITS[HP]:
         passive_price = max(best_bid + 1, best_ask - HP_PASSIVE_JOIN_OFFSET)
-        passive_edge = passive_price - adjusted
+        order_price, protected, _min_sell = hp_protected_sell_price(state, int(passive_price))
+        passive_edge = order_price - adjusted
         desired = HP_PASSIVE_ORDER_SIZE
         size = position_safe_sell_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
         if passive_edge >= HP_PASSIVE_MAX_NEGATIVE_EDGE and size > 0:
-            reason = f"HP_SELL_passive_signal_resid_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={passive_edge:.2f}_ret_ema={return_ema:.2f}"
+            reason = f"HP_SELL_passive_signal_resid_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={passive_edge:.2f}_protected={int(protected)}_ret_ema={return_ema:.2f}"
             log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, passive_edge, position, -size, reason)
-            orders.append(Order(HP, int(passive_price), -size))
+            orders.append(Order(HP, order_price, -size))
         else:
             reason = hp_signal_skip_reason("SELL", signal_active, signal_age, passive_edge, position)
             log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, passive_edge, position, 0, reason)
     elif HP_ENABLE_BEARISH_SIGNAL and bearish_flow and sell_edge > HP_SIGNAL_EDGE and position > -0.60 * POSITION_LIMITS[HP]:
         desired = HP_SIGNAL_ORDER_SIZE
         size = position_safe_sell_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
-        reason = f"HP_SELL_signal_only_resid_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={sell_edge:.2f}_ret_ema={return_ema:.2f}"
-        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, sell_edge, position, -size, reason)
+        sell_price, protected, _min_sell = hp_protected_sell_price(state, best_bid)
+        order_edge = sell_price - adjusted
+        reason = f"HP_SELL_signal_only_resid_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={order_edge:.2f}_protected={int(protected)}_ret_ema={return_ema:.2f}"
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, order_edge, position, -size, reason)
         if size > 0:
-            orders.append(Order(HP, best_bid, -size))
-    elif not HP_SIGNAL_ONLY and best_ask < lower_band and buy_z <= -HP_ENTRY_Z and buy_momentum_ok and buy_edge > buy_threshold and position < 0.70 * POSITION_LIMITS[HP]:
-        desired = HP_MAX_ORDER_SIZE
+            orders.append(Order(HP, sell_price, -size))
+    elif not HP_SIGNAL_ONLY and not new_buy_block and best_ask < lower_band and buy_z <= -HP_ENTRY_Z and buy_momentum_ok and buy_edge > buy_threshold and position < min(0.70 * POSITION_LIMITS[HP], passive_long_add_cap):
+        desired = max(HP_MAX_ORDER_SIZE, confidence_order_size if buy_confidence >= HP_CONF_WEAK_SCORE else HP_MAX_ORDER_SIZE)
         if buy_edge >= HP_STRONG_EDGE or buy_z <= -HP_STRONG_Z:
-            desired = min(2 * HP_MAX_ORDER_SIZE, 24)
-        size = position_safe_buy_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
-        reason = f"HP_BUY_resid_z={buy_z:.2f}_std={rolling_std:.2f}_{signal_label}_ret_ema={return_ema:.2f}_pred_move={prediction['predicted_move']:.2f}"
-        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, buy_edge, position, size, reason)
+            desired = max(desired, min(2 * HP_MAX_ORDER_SIZE, 16))
+        size = position_safe_buy_size(HP, desired, position, POSITION_LIMITS[HP], passive_long_add_cap)
+        reason = f"HP_BUY_resid_z={buy_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={buy_order_edge:.2f}_ret_ema={return_ema:.2f}_pred_move={prediction['predicted_move']:.2f}_buy_px={buy_order_price}"
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, buy_order_edge, position, size, reason)
         if size > 0:
-            orders.append(Order(HP, best_ask, size))
-    elif not HP_SIGNAL_ONLY and best_bid > upper_band and sell_z >= HP_ENTRY_Z and sell_momentum_ok and sell_edge > sell_threshold and position > -0.70 * POSITION_LIMITS[HP]:
-        desired = HP_MAX_ORDER_SIZE
+            orders.append(Order(HP, buy_order_price, size))
+    elif not HP_SIGNAL_ONLY and best_bid > upper_band and sell_z >= HP_ENTRY_Z and sell_momentum_ok and sell_edge > sell_threshold and position > 0:
+        desired = min(HP_MAX_ORDER_SIZE, position)
         if sell_edge >= HP_STRONG_EDGE or sell_z >= HP_STRONG_Z:
-            desired = min(2 * HP_MAX_ORDER_SIZE, 24)
+            desired = min(2 * HP_MAX_ORDER_SIZE, 12, position)
         size = position_safe_sell_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
-        reason = f"HP_SELL_resid_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_ret_ema={return_ema:.2f}_pred_move={prediction['predicted_move']:.2f}"
-        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, sell_edge, position, -size, reason)
+        size = min(size, position)
+        sell_price, protected, _min_sell = hp_protected_sell_price(state, best_bid)
+        order_edge = sell_price - adjusted
+        reason = f"HP_SELL_resid_z={sell_z:.2f}_std={rolling_std:.2f}_{signal_label}_edge={order_edge:.2f}_protected={int(protected)}_ret_ema={return_ema:.2f}_pred_move={prediction['predicted_move']:.2f}"
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, order_edge, position, -size, reason)
         if size > 0:
-            orders.append(Order(HP, best_bid, -size))
+            orders.append(Order(HP, sell_price, -size))
     else:
         edge = buy_edge if buy_edge >= sell_edge else sell_edge
         z = buy_z if buy_edge >= sell_edge else sell_z

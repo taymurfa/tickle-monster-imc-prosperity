@@ -1,5 +1,5 @@
 // worker.js - Background Backtest Engine
-importScripts("https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js");
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js");
 
 let pyodide;
 let engineCode;
@@ -32,7 +32,7 @@ self.onmessage = async (e) => {
       const progressCallback = (completed, total) => {
         self.postMessage({ type: "progress", completed, total });
       };
-      pyodide.registerJsInternal("progress_callback", progressCallback);
+      pyodide.globals.set("progress_callback", progressCallback);
 
       // 3. Execute the backtest
       const resultJson = await pyodide.runPythonAsync(`

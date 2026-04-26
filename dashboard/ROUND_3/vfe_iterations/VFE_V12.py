@@ -1,7 +1,7 @@
 """
 IMC Prosperity Round 3 strategy scaffold.
 
-Current mode: HP-only predictive mean-reversion.
+Current mode: HP-only baseline.
 
 Backtest workflow:
 1. HP only: ENABLE_HP = True, every other strategy layer False.
@@ -30,8 +30,8 @@ except ImportError:
 # Feature toggles
 # ---------------------------------------------------------------------------
 
-ENABLE_HP = True
-ENABLE_VFE = False
+ENABLE_HP = False
+ENABLE_VFE = True
 ENABLE_VOUCHERS = False
 ENABLE_PID = False
 ENABLE_OPTION_MODEL = False
@@ -82,34 +82,37 @@ ACTIVE_VOUCHERS: List[str] = ["VEV_5500"]
 # ---------------------------------------------------------------------------
 
 HP_EMA_ALPHA = 0.03
-HP_FAST_EMA_ALPHA = 0.14
-HP_RETURN_EMA_ALPHA = 0.22
-HP_TRADE_THRESHOLD = 5.0
-HP_SPREAD_BUFFER_FRAC = 0.40
+HP_TRADE_THRESHOLD = 6.0
+HP_SPREAD_BUFFER_FRAC = 0.50
 HP_INVENTORY_PENALTY = 0.02
-HP_MAX_ORDER_SIZE = 12
-HP_PRACTICAL_CAP = 160
-HP_STRONG_EDGE = 10.0
+HP_MAX_ORDER_SIZE = 8
+HP_PRACTICAL_CAP = 140
+HP_STRONG_EDGE = 12.0
 HP_INVENTORY_THROTTLE_START = 100
 HP_EXTEND_EDGE_PENALTY = 0.04
 HP_REDUCE_EDGE_DISCOUNT = 0.03
-HP_FAST_REVERSION_WEIGHT = 0.10
-HP_RETURN_WEIGHT = 0.25
-HP_MICROPRICE_WEIGHT = 0.15
-HP_IMBALANCE_WEIGHT = 0.08
-HP_PREDICTION_CLAMP = 4.0
-HP_VOL_WINDOW = 80
-HP_MIN_STD = 1.0
-HP_ENTRY_Z = 1.45
-HP_STRONG_Z = 2.05
-HP_BOLLINGER_MULT = 1.45
 
-VFE_EMA_ALPHA = 0.03
+VFE_EMA_ALPHA = 0.05
 VFE_VOL_WINDOW = 80
-VFE_TRADE_THRESHOLD = 8.0
-VFE_INVENTORY_PENALTY = 0.02
-VFE_MAX_ORDER_SIZE = 5
-VFE_PRACTICAL_CAP = 140
+VFE_SOFT_CAP = 200                  # full position limit
+VFE_QUOTE_SIZE = 8                  # V7: base size 5 -> 8 (more fills per cycle)
+VFE_IMBALANCE_GATE = 0.0
+VFE_QUOTE_OFFSET = 0
+VFE_SKEW_COEFF = 0.015
+
+# Gated-aggression layer.
+VFE_AGG_IMBALANCE_THRESHOLD = 0.5   # V11: 0.4 -> 0.5 (sweep showed +234 PnL at 0.5 vs 0.4)
+VFE_AGG_SIZE = 4                    # V12: 3 -> 4 (smooth gradient, all 3 days positive)
+VFE_AGG_DISABLE_AT = 150            # raised in line with bigger soft cap
+
+# V6: contrarian inventory size scaling.
+# The reduce-inventory side scales UP with |pos| -- forces faster cycle completion.
+# The extend-inventory side scales DOWN -- avoids piling onto a heavy position.
+VFE_REDUCE_SIZE_GAIN = 0.10         # +1 unit per 10 |pos|
+VFE_REDUCE_SIZE_CAP = 20            # max scaled-up size on the reduce side
+VFE_EXTEND_SIZE_FLOOR = 2           # minimum size on the extending side
+VFE_EXTEND_TAPER_AT = 30            # |pos| where extend side starts shrinking
+VFE_EXTEND_TAPER_END = 120          # |pos| where extend side reaches the floor
 
 VOUCHER_MAX_ORDER_SIZE = 5
 VOUCHER_PRACTICAL_CAP = 80
@@ -247,50 +250,6 @@ def inventory_throttled_thresholds(
     return buy_threshold, sell_threshold
 
 
-def clamp(value: float, low: float, high: float) -> float:
-    return max(low, min(high, value))
-
-
-def hp_prediction_fair(
-    state: Dict[str, Any],
-    observed_mid: float,
-    micro: Optional[float],
-    imbalance: Optional[float],
-    spread: int,
-) -> Tuple[float, Dict[str, float]]:
-    slow_fair = update_ema(HP, observed_mid, HP_EMA_ALPHA, state["ema"])
-    fast_fair = update_ema(f"{HP}_FAST", observed_mid, HP_FAST_EMA_ALPHA, state["ema"])
-
-    prev_mid = state.setdefault("last_mid", {}).get(HP)
-    raw_return = 0.0 if prev_mid is None else observed_mid - float(prev_mid)
-    state["last_mid"][HP] = observed_mid
-    return_ema = update_ema(f"{HP}_RETURN", raw_return, HP_RETURN_EMA_ALPHA, state["ema"])
-
-    fast_gap = fast_fair - slow_fair
-    micro_gap = 0.0 if micro is None else micro - observed_mid
-    imbalance_gap = 0.0 if imbalance is None else imbalance * max(1, spread)
-
-    predicted_move = (
-        HP_FAST_REVERSION_WEIGHT * fast_gap
-        + HP_RETURN_WEIGHT * return_ema
-        + HP_MICROPRICE_WEIGHT * micro_gap
-        + HP_IMBALANCE_WEIGHT * imbalance_gap
-    )
-    predicted_move = clamp(predicted_move, -HP_PREDICTION_CLAMP, HP_PREDICTION_CLAMP)
-    predicted_fair = slow_fair + predicted_move
-    stats = {
-        "slow_fair": slow_fair,
-        "fast_fair": fast_fair,
-        "return_ema": return_ema,
-        "micro_gap": micro_gap,
-        "imbalance": 0.0 if imbalance is None else imbalance,
-        "predicted_move": predicted_move,
-        "predicted_fair": predicted_fair,
-    }
-    state["hp_prediction"] = {key: round(value, 4) for key, value in stats.items()}
-    return predicted_fair, stats
-
-
 def order_book_imbalance(order_depth: OrderDepth) -> Optional[float]:
     bba = get_best_bid_ask(order_depth)
     if bba is None:
@@ -306,10 +265,8 @@ def load_state(blob: str) -> Dict[str, Any]:
     default = {
         "ema": {},
         "history": {},
-        "last_mid": {},
         "debug_logs": [],
         "vfe_stats": {},
-        "hp_prediction": {},
         "day_index": 0,
         "last_ts": -1,
     }
@@ -326,14 +283,10 @@ def load_state(blob: str) -> Dict[str, Any]:
         default["ema"] = {}
     if not isinstance(default["history"], dict):
         default["history"] = {}
-    if not isinstance(default["last_mid"], dict):
-        default["last_mid"] = {}
     if not isinstance(default["debug_logs"], list):
         default["debug_logs"] = []
     if not isinstance(default["vfe_stats"], dict):
         default["vfe_stats"] = {}
-    if not isinstance(default["hp_prediction"], dict):
-        default["hp_prediction"] = {}
     return default
 
 
@@ -396,10 +349,7 @@ def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]
 
     best_bid, _bid_vol, best_ask, _ask_vol = bba
     spread = max(0, best_ask - best_bid)
-    micro = get_microprice(depth)
-    imbalance = order_book_imbalance(depth)
-    fair, prediction = hp_prediction_fair(state, observed, micro, imbalance, spread)
-    rolling_std = max(HP_MIN_STD, update_rolling_vol(HP, observed, state["history"], HP_VOL_WINDOW))
+    fair = update_ema(HP, observed, HP_EMA_ALPHA, state["ema"])
     position = trading_state.position.get(HP, 0)
     adjusted = inventory_adjusted_fair(fair, position, HP_INVENTORY_PENALTY)
     buy_threshold, sell_threshold = inventory_throttled_thresholds(
@@ -412,94 +362,157 @@ def hp_orders(state: Dict[str, Any], trading_state: TradingState) -> List[Order]
     orders: List[Order] = []
     buy_edge = adjusted - best_ask
     sell_edge = best_bid - adjusted
-    buy_z = (best_ask - adjusted) / rolling_std
-    sell_z = (best_bid - adjusted) / rolling_std
-    lower_band = adjusted - HP_BOLLINGER_MULT * rolling_std
-    upper_band = adjusted + HP_BOLLINGER_MULT * rolling_std
 
-    if best_ask < lower_band and buy_z <= -HP_ENTRY_Z and buy_edge > buy_threshold and position < 0.70 * POSITION_LIMITS[HP]:
+    if buy_edge > buy_threshold and position < 0.70 * POSITION_LIMITS[HP]:
         desired = HP_MAX_ORDER_SIZE
-        if buy_edge >= HP_STRONG_EDGE or buy_z <= -HP_STRONG_Z:
-            desired = min(2 * HP_MAX_ORDER_SIZE, 24)
+        if buy_edge >= HP_STRONG_EDGE:
+            desired = min(2 * HP_MAX_ORDER_SIZE, 16)
         size = position_safe_buy_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
-        reason = f"HP_BUY_bollinger_z={buy_z:.2f}_std={rolling_std:.2f}_pred_move={prediction['predicted_move']:.2f}"
-        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, buy_edge, position, size, reason)
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, buy_edge, position, size, "HP_BUY_large_discount")
         if size > 0:
             orders.append(Order(HP, best_ask, size))
-    elif best_bid > upper_band and sell_z >= HP_ENTRY_Z and sell_edge > sell_threshold and position > -0.70 * POSITION_LIMITS[HP]:
+    elif sell_edge > sell_threshold and position > -0.70 * POSITION_LIMITS[HP]:
         desired = HP_MAX_ORDER_SIZE
-        if sell_edge >= HP_STRONG_EDGE or sell_z >= HP_STRONG_Z:
-            desired = min(2 * HP_MAX_ORDER_SIZE, 24)
+        if sell_edge >= HP_STRONG_EDGE:
+            desired = min(2 * HP_MAX_ORDER_SIZE, 16)
         size = position_safe_sell_size(HP, desired, position, POSITION_LIMITS[HP], HP_PRACTICAL_CAP)
-        reason = f"HP_SELL_bollinger_z={sell_z:.2f}_std={rolling_std:.2f}_pred_move={prediction['predicted_move']:.2f}"
-        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, sell_edge, position, -size, reason)
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, sell_edge, position, -size, "HP_SELL_large_premium")
         if size > 0:
             orders.append(Order(HP, best_bid, -size))
     else:
         edge = buy_edge if buy_edge >= sell_edge else sell_edge
-        z = buy_z if buy_edge >= sell_edge else sell_z
-        reason = f"HP_NO_TRADE_bollinger_z={z:.2f}_std={rolling_std:.2f}_pred_move={prediction['predicted_move']:.2f}"
-        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, edge, position, 0, reason)
+        log_decision(state, trading_state.timestamp, HP, adjusted, best_bid, best_ask, edge, position, 0, "HP_NO_TRADE_edge_or_inventory")
 
     return orders
 
 
 def update_vfe_stats(state: Dict[str, Any], trading_state: TradingState) -> Optional[float]:
+    """Microprice-EMA fair value for VFE. Always runs so vouchers/HP can read it."""
     depth = trading_state.order_depths.get(VFE)
     if depth is None:
         return None
     bba = get_best_bid_ask(depth)
+    micro = get_microprice(depth)
     mid = get_midprice(depth)
-    if bba is None or mid is None:
+    if bba is None or micro is None or mid is None:
         return None
     best_bid, _bid_vol, best_ask, _ask_vol = bba
-    fair = update_ema(VFE, mid, VFE_EMA_ALPHA, state["ema"])
+    fair = update_ema(VFE, micro, VFE_EMA_ALPHA, state["ema"])
     vol = update_rolling_vol(VFE, mid, state["history"], VFE_VOL_WINDOW)
     imbalance = order_book_imbalance(depth)
     state["vfe_stats"] = {
         "mid": round(mid, 3),
+        "micro": round(micro, 3),
         "ema_fair": round(fair, 3),
         "rolling_vol": round(vol, 5),
         "imbalance": round(imbalance, 5) if imbalance is not None else None,
     }
-    log_decision(
-        state,
-        trading_state.timestamp,
-        VFE,
-        fair,
-        best_bid,
-        best_ask,
-        None,
-        trading_state.position.get(VFE, 0),
-        0,
-        "VFE_STATS_ONLY",
-    )
     return fair
 
 
-def conservative_vfe_orders(state: Dict[str, Any], trading_state: TradingState, fair: float) -> List[Order]:
+def vfe_orders(state: Dict[str, Any], trading_state: TradingState, fair: float) -> List[Order]:
+    """V6: V5 + contrarian inventory size scaling + cap raised to 200.
+
+    V2 baseline preserved: no taker, queue-behind quotes, imbalance gate, linear skew.
+    V5 layer preserved: inside-spread aggression on strong imbalance (threshold 0.5).
+
+    V6 additions:
+    - SOFT_CAP raised 100 -> 200 (full limit). Prior caps never bound; bigger room
+      lets contrarian scaling push position further per cycle.
+    - Contrarian size scaling on the top-of-book quotes:
+        * "Reduce side" (the one that flattens inventory) scales up linearly with |pos|.
+          Base 5, gain 0.10 -> at |pos|=50 size=10, |pos|=100 size=15, capped at 20.
+        * "Extend side" tapers from base 5 down to floor 2 between |pos|=30..120.
+      Rationale: PnL is driven by mean-reversion cycles. Scaling up on the reduce
+      side accelerates each cycle's completion; tapering the extend side avoids
+      piling onto a heavy position.
+    """
     if not ENABLE_VFE:
         return []
     depth = trading_state.order_depths.get(VFE)
     bba = get_best_bid_ask(depth) if depth is not None else None
     if depth is None or bba is None:
         return []
-    best_bid, _bid_vol, best_ask, _ask_vol = bba
+    best_bid, bid_vol, best_ask, ask_vol = bba
+
     position = trading_state.position.get(VFE, 0)
-    adjusted = inventory_adjusted_fair(fair, position, VFE_INVENTORY_PENALTY)
-    spread = max(0, best_ask - best_bid)
-    threshold = VFE_TRADE_THRESHOLD + 0.5 * spread
-    buy_edge = adjusted - best_ask
-    sell_edge = best_bid - adjusted
-    if buy_edge > threshold and position <= 0:
-        size = position_safe_buy_size(VFE, VFE_MAX_ORDER_SIZE, position, POSITION_LIMITS[VFE], VFE_PRACTICAL_CAP)
-        log_decision(state, trading_state.timestamp, VFE, adjusted, best_bid, best_ask, buy_edge, position, size, "VFE_BUY_conservative")
-        return [Order(VFE, best_ask, size)] if size > 0 else []
-    if sell_edge > threshold and position >= 0:
-        size = position_safe_sell_size(VFE, VFE_MAX_ORDER_SIZE, position, POSITION_LIMITS[VFE], VFE_PRACTICAL_CAP)
-        log_decision(state, trading_state.timestamp, VFE, adjusted, best_bid, best_ask, sell_edge, position, -size, "VFE_SELL_conservative")
-        return [Order(VFE, best_bid, -size)] if size > 0 else []
-    return []
+    soft = VFE_SOFT_CAP
+    abs_pos = abs(position)
+
+    total_vol = bid_vol + ask_vol
+    imb = (bid_vol - ask_vol) / total_vol if total_vol > 0 else 0.0
+
+    skew = position * VFE_SKEW_COEFF
+
+    can_buy = position < soft
+    can_sell = position > -soft
+    bid_ok = imb >= -VFE_IMBALANCE_GATE
+    ask_ok = imb <= VFE_IMBALANCE_GATE
+
+    # ---- Contrarian size scaling ----
+    # When long (pos > 0): bid extends, ask reduces.
+    # When short (pos < 0): ask extends, bid reduces.
+    reduce_size = min(VFE_REDUCE_SIZE_CAP,
+                      int(round(VFE_QUOTE_SIZE + VFE_REDUCE_SIZE_GAIN * abs_pos)))
+    if abs_pos <= VFE_EXTEND_TAPER_AT:
+        extend_size = VFE_QUOTE_SIZE
+    elif abs_pos >= VFE_EXTEND_TAPER_END:
+        extend_size = VFE_EXTEND_SIZE_FLOOR
+    else:
+        frac = (abs_pos - VFE_EXTEND_TAPER_AT) / float(VFE_EXTEND_TAPER_END - VFE_EXTEND_TAPER_AT)
+        extend_size = int(round(VFE_QUOTE_SIZE - frac * (VFE_QUOTE_SIZE - VFE_EXTEND_SIZE_FLOOR)))
+        extend_size = max(VFE_EXTEND_SIZE_FLOOR, extend_size)
+
+    if position > 0:
+        bid_size_base = extend_size   # buying extends a long
+        ask_size_base = reduce_size   # selling reduces a long
+    elif position < 0:
+        bid_size_base = reduce_size   # buying reduces a short
+        ask_size_base = extend_size   # selling extends a short
+    else:
+        bid_size_base = ask_size_base = VFE_QUOTE_SIZE
+
+    orders: List[Order] = []
+    spread = best_ask - best_bid
+
+    # ---- Top-of-book passive quotes ----
+    if can_buy and bid_ok:
+        adj_bid = int(round(best_bid - max(0, skew)))
+        adj_bid = min(adj_bid, best_ask - 1)
+        room = soft - position
+        size = min(bid_size_base, max(0, room))
+        if size > 0:
+            orders.append(Order(VFE, adj_bid, size))
+            log_decision(state, trading_state.timestamp, VFE, fair, best_bid, best_ask, imb, position, size, "VFE_V6_BID_TOB")
+
+    if can_sell and ask_ok:
+        adj_ask = int(round(best_ask - min(0, skew)))
+        adj_ask = max(adj_ask, best_bid + 1)
+        room = soft + position
+        size = min(ask_size_base, max(0, room))
+        if size > 0:
+            orders.append(Order(VFE, adj_ask, -size))
+            log_decision(state, trading_state.timestamp, VFE, fair, best_bid, best_ask, imb, position, -size, "VFE_V6_ASK_TOB")
+
+    # ---- Gated-aggression inside-spread layer ----
+    if spread >= 2:
+        if imb > VFE_AGG_IMBALANCE_THRESHOLD and position < VFE_AGG_DISABLE_AT and can_buy:
+            agg_bid_px = best_bid + 1
+            room = soft - position
+            agg_size = min(VFE_AGG_SIZE, max(0, room))
+            if agg_size > 0 and agg_bid_px < best_ask:
+                orders.append(Order(VFE, agg_bid_px, agg_size))
+                log_decision(state, trading_state.timestamp, VFE, fair, best_bid, best_ask, imb, position, agg_size, "VFE_V6_BID_AGG")
+
+        if imb < -VFE_AGG_IMBALANCE_THRESHOLD and position > -VFE_AGG_DISABLE_AT and can_sell:
+            agg_ask_px = best_ask - 1
+            room = soft + position
+            agg_size = min(VFE_AGG_SIZE, max(0, room))
+            if agg_size > 0 and agg_ask_px > best_bid:
+                orders.append(Order(VFE, agg_ask_px, -agg_size))
+                log_decision(state, trading_state.timestamp, VFE, fair, best_bid, best_ask, imb, position, -agg_size, "VFE_V6_ASK_AGG")
+
+    return orders
 
 
 def option_model_fair(vfe_fair: float, strike: int, vol: float, tte_days: float) -> float:
@@ -563,9 +576,9 @@ class Trader:
                 result[HP] = orders
 
         vfe_fair = update_vfe_stats(persistent, state)
-        vfe_orders = conservative_vfe_orders(persistent, state, vfe_fair) if vfe_fair is not None else []
-        if vfe_orders:
-            result[VFE] = vfe_orders
+        vfe_order_list = vfe_orders(persistent, state, vfe_fair) if vfe_fair is not None else []
+        if vfe_order_list:
+            result[VFE] = vfe_order_list
 
         voucher_orders = voucher_relative_value_orders(persistent, state, vfe_fair)
         for product, orders in voucher_orders.items():
