@@ -219,6 +219,8 @@ const FIXED_VALUE_PRODUCTS = {
 // ── centralised Plotly dark-theme layout defaults ────────────────────────────
 const CHART_BG   = "rgba(0,0,0,0)";
 const PLOT_BG = "#09090b";
+const HOVER_BG = "#18181b";
+const HOVER_BORDER = "#3f3f46";
 const GRID_COLOR = "#18181b";
 const FONT_COLOR = "#fafafa";
 const MUTED_FONT_COLOR = "#a1a1aa";
@@ -242,6 +244,15 @@ function baseLayout(extra = {}) {
     dragmode: "pan",
     hoverdistance: -1,
     spikedistance: -1,
+    hoverlabel: {
+      bgcolor: HOVER_BG,
+      bordercolor: HOVER_BORDER,
+      font: {
+        color: FONT_COLOR,
+        family: "JetBrains Mono, monospace",
+        size: 11,
+      },
+    },
     legend: { font: { size: 10, color: FONT_COLOR }, bgcolor: "rgba(0,0,0,0)" },
     xaxis: {
       showgrid: true,
@@ -319,8 +330,17 @@ function resizePlotsInWidget(widget) {
   if (!window.Plotly || !widget) return;
   const plots = widget.querySelectorAll(".js-plotly-plot");
   plots.forEach((plot) => {
-    try { Plotly.Plots.resize(plot); } catch {}
+    try {
+      Plotly.relayout(plot, { autosize: true });
+      Plotly.Plots.resize(plot);
+    } catch {}
   });
+}
+
+function resizeFullscreenWidget(widget) {
+  requestAnimationFrame(() => resizePlotsInWidget(widget));
+  requestAnimationFrame(() => requestAnimationFrame(() => resizePlotsInWidget(widget)));
+  setTimeout(() => resizePlotsInWidget(widget), 180);
 }
 
 function openFullscreenWidget(widget) {
@@ -335,8 +355,7 @@ function openFullscreenWidget(widget) {
     button.setAttribute("aria-pressed", "true");
     button.setAttribute("title", "Exit full screen");
   }
-  requestAnimationFrame(() => resizePlotsInWidget(widget));
-  setTimeout(() => resizePlotsInWidget(widget), 180);
+  resizeFullscreenWidget(widget);
 }
 
 function closeFullscreenWidget() {
@@ -350,8 +369,7 @@ function closeFullscreenWidget() {
     button.setAttribute("aria-pressed", "false");
     button.setAttribute("title", "View full screen");
   }
-  requestAnimationFrame(() => resizePlotsInWidget(widget));
-  setTimeout(() => resizePlotsInWidget(widget), 180);
+  resizeFullscreenWidget(widget);
 }
 
 function setupGraphWidget(widget, chartEl, title = "Chart") {
@@ -2202,6 +2220,9 @@ function bindEvents() {
     if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
     if (e.key.toLowerCase() === 'r') { e.preventDefault(); if (!dom.runButton.disabled) runSimulation(); }
     else if (['0', '1', '2', '3', '4'].includes(e.key)) { dom.roundSelect.value = e.key; updateRound(e.key); saveSettings(); }
+  });
+  window.addEventListener("resize", () => {
+    if (fullscreenWidget) resizePlotsInWidget(fullscreenWidget);
   });
   dom.strategyInput.addEventListener("change", (e) => {
     const f = e.target.files?.[0];
