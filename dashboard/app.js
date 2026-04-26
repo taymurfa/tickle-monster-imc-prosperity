@@ -97,6 +97,10 @@ const dom = {
   logInput: document.getElementById("logInput"),
   logDropZone: document.getElementById("logDropZone"),
   logMeta: document.getElementById("logMeta"),
+  logProduct: document.getElementById("logProduct"),
+  logChart: document.getElementById("logChart"),
+  logSummary: document.getElementById("logSummary"),
+  logFillsTableBody: document.querySelector("#logFillsTable tbody"),
   status: document.getElementById("status"),
   runButton: document.getElementById("runButton"),
   runProgress: document.getElementById("runProgress"),
@@ -639,6 +643,7 @@ function updateRound(round) {
 
   renderDataFiles();
   renderProductCharts([], []); // Refresh placeholders
+  renderLogsPage(lastResult);
   setStatus(`Round ${round} selected.`);
 }
 
@@ -819,7 +824,7 @@ function normalizeActivityRows(rows) {
   return points.sort(sortByDayThenTs);
 }
 
-function normalizeTradeRows(rows) {
+function normalizeTradeRows(rows, fallbackDay = 0) {
   const fills = [];
   const marketTrades = [];
   const positions = {};
@@ -831,7 +836,7 @@ function normalizeTradeRows(rows) {
     const price = numberField(row, "price");
     const quantity = numberField(row, "quantity", "qty");
     if (!product || timestamp === null || price === null || quantity === null) continue;
-    const day = numberField(row, "day") ?? 0;
+    const day = numberField(row, "day") ?? fallbackDay;
     const buyer = stringField(row, "buyer");
     const seller = stringField(row, "seller");
     const isBuy = buyer.toUpperCase().includes("SUBMISSION");
@@ -986,7 +991,9 @@ function parseOosUpload(text, fileName = "") {
   }
 
   const points = normalizeActivityRows(activityRows);
-  const tradeResult = normalizeTradeRows(tradeRows);
+  const pointDays = [...new Set(points.map((point) => point.day))];
+  const fallbackTradeDay = pointDays.length === 1 ? pointDays[0] : 0;
+  const tradeResult = normalizeTradeRows(tradeRows, fallbackTradeDay);
   const portfolioPoints = buildPortfolioPoints(points);
   const result = normalizeUploadedResult({
     points,
@@ -1774,6 +1781,155 @@ function renderProductCharts(points, fills) {
   }
 }
 
+function buildLogProductOptions(result) {
+  if (!dom.logProduct) return;
+  const current = dom.logProduct.value;
+  const products = [...new Set([
+    ...(result.points || []).map((point) => point.product),
+    ...(result.fills || []).map((fill) => fill.product),
+    ...(result.market_trades || []).map((trade) => trade.product),
+  ].filter(Boolean))].sort();
+  dom.logProduct.innerHTML = "";
+  if (!products.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No log loaded";
+    dom.logProduct.appendChild(option);
+    return;
+  }
+  for (const product of products) {
+    const option = document.createElement("option");
+    option.value = product;
+    option.textContent = product;
+    dom.logProduct.appendChild(option);
+  }
+  const fillProducts = new Set((result.fills || []).map((fill) => fill.product));
+  const preferred = products.includes(current)
+    ? current
+    : products.find((product) => fillProducts.has(product)) || products[0];
+  dom.logProduct.value = preferred;
+}
+
+function renderLogFillsTable(result, product) {
+  if (!dom.logFillsTableBody) return;
+  dom.logFillsTableBody.innerHTML = "";
+  const fills = (result.fills || [])
+    .filter((fill) => !product || fill.product === product)
+    .slice()
+    .sort((a, b) => b.day !== a.day ? b.day - a.day : b.timestamp - a.timestamp);
+  for (const fill of fills.slice(0, 300)) {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${fill.day}</td>
+      <td>${fill.timestamp}</td>
+      <td>${fill.product}</td>
+      <td>${fill.side}</td>
+      <td class="num">${fill.price}</td>
+      <td class="num">${fill.quantity}</td>
+      <td class="num">${fill.position ?? "n/a"}</td>
+    `;
+    dom.logFillsTableBody.appendChild(row);
+  }
+}
+
+function renderLogChart(result) {
+  if (!dom.logChart) return;
+  const product = dom.logProduct?.value || "";
+  if (!product) {
+    Plotly.purge(dom.logChart);
+    if (dom.logSummary) dom.logSummary.textContent = "Upload an OOS log to populate this view.";
+    renderLogFillsTable(result, product);
+    return;
+  }
+
+  const productPoints = (result.points || []).filter((point) => point.product === product).sort(sortByDayThenTs);
+  const productFills = (result.fills || []).filter((fill) => fill.product === product).sort(sortByDayThenTs);
+  const sampledPoints = samplePoints(productPoints, productFills, performanceMode);
+  const axis = buildTimeAxis(sampledPoints);
+  const indexByKey = new Map(sampledPoints.map((point, idx) => [parseKey(point), idx]));
+  const alignedFills = productFills.filter((fill) => indexByKey.has(parseFillKey(fill)));
+  const buyFills = alignedFills.filter((fill) => fill.side === "BUY");
+  const sellFills = alignedFills.filter((fill) => fill.side === "SELL");
+
+  const fillTrace = (fillsForSide, side, color, symbol) => ({
+    type: "scattergl",
+    mode: "markers",
+    name: `${side} fills`,
+    x: fillsForSide.map((fill) => indexByKey.get(parseFillKey(fill))),
+    y: fillsForSide.map((fill) => fill.price),
+    customdata: fillsForSide.map((fill) => `D${fill.day} T${fill.timestamp}<br>${fill.product}<br>${side} q${fill.quantity} @ ${fill.price}`),
+    marker: {
+      size: fillsForSide.map((fill) => Math.max(8, Math.min(28, 6 + Math.sqrt(Math.max(1, fill.quantity)) * 3))),
+      color,
+      symbol,
+      line: { color: "#fafafa", width: 0.8 },
+      opacity: 0.9,
+    },
+    hovertemplate: "%{customdata}<extra></extra>",
+  });
+
+  const traces = [
+    {
+      type: "scattergl",
+      mode: "lines",
+      name: `${product} mid`,
+      x: axis.x,
+      y: sampledPoints.map((point) => point.mid_price),
+      customdata: sampledPoints.map((point) => `D${point.day} T${point.timestamp}`),
+      line: { color: "#cbd5e1", width: 1.4 },
+      hovertemplate: "%{customdata}<br>mid=%{y:.2f}<extra></extra>",
+    },
+    {
+      type: "scattergl",
+      mode: "lines",
+      name: "best bid",
+      x: axis.x,
+      y: sampledPoints.map((point) => point.best_bid),
+      line: { color: "#38bdf8", width: 0.9 },
+      opacity: 0.65,
+      hovertemplate: "bid=%{y:.2f}<extra></extra>",
+    },
+    {
+      type: "scattergl",
+      mode: "lines",
+      name: "best ask",
+      x: axis.x,
+      y: sampledPoints.map((point) => point.best_ask),
+      line: { color: "#fb7185", width: 0.9 },
+      opacity: 0.65,
+      hovertemplate: "ask=%{y:.2f}<extra></extra>",
+    },
+    fillTrace(buyFills, "BUY", "#34d399", "circle"),
+    fillTrace(sellFills, "SELL", "#fb7185", "diamond"),
+  ];
+
+  Plotly.newPlot(
+    dom.logChart,
+    traces,
+    baseLayout({
+      margin: { l: 56, r: 18, t: 8, b: 38 },
+      xaxis: { title: "Time Index", tickvals: axis.tickVals, ticktext: axis.tickText },
+      yaxis: { title: "Price", range: computeRange([
+        ...sampledPoints.map((point) => point.best_bid),
+        ...sampledPoints.map((point) => point.best_ask),
+        ...alignedFills.map((fill) => fill.price),
+      ]) },
+      legend: { orientation: "h", y: 1.14, x: 0 },
+    }),
+    PLOTLY_CONFIG
+  );
+
+  if (dom.logSummary) {
+    dom.logSummary.textContent = `${productPoints.length.toLocaleString()} price rows · ${productFills.length.toLocaleString()} fills · volume ${productFills.reduce((sum, fill) => sum + fill.quantity, 0).toLocaleString()}`;
+  }
+  renderLogFillsTable(result, product);
+}
+
+function renderLogsPage(result) {
+  buildLogProductOptions(result);
+  renderLogChart(result);
+}
+
 function renderMetrics(metrics) {
   dom.metrics.finalPnl.textContent = fmtNumber(metrics.final_pnl);
   dom.metrics.maxDd.textContent = `${fmtNumber(metrics.max_drawdown_abs)} (${fmtNumber((metrics.max_drawdown_pct ?? 0) * 100, 2)}%)`;
@@ -1869,12 +2025,18 @@ function buildTraderIdOptions(result) {
   }
   const current = analysisState.traderId || "ALL";
   el.innerHTML = '<option value="ALL">ALL</option>';
-  [...ids].sort().forEach((id) => {
+  
+  // Natural sort for "Mark" neuro-robots (Mark1, Mark2, Mark10)
+  const sortedIds = [...ids].sort((a, b) => {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  });
+
+  sortedIds.forEach((id) => {
     const opt = document.createElement("option");
     opt.value = id; opt.textContent = id;
     el.appendChild(opt);
   });
-  el.value = [...ids].includes(current) ? current : "ALL";
+  el.value = sortedIds.includes(current) ? current : "ALL";
   analysisState.traderId = el.value;
 }
 
@@ -2107,6 +2269,7 @@ function applyResult(result) {
     () => renderFillsTable(result.fills || []),
     () => buildAnalysisProductOptions(result.points || []),
     () => buildIndicatorCheckboxes(result),
+    () => renderLogsPage(result),
     () => renderSavedRunsList(),
     () => renderSyntheticChart(),
   ];
@@ -2341,7 +2504,8 @@ function bindEvents() {
   dom.analysisNormalize.addEventListener("change", () => { analysisState.normalize = dom.analysisNormalize.value; renderAnalysis(lastResult); });
   dom.analysisTimelineSort.addEventListener("change", () => { analysisState.timelineSort = dom.analysisTimelineSort.value; renderAnalysis(lastResult); });
   dom.analysisBookView.addEventListener("change", () => { analysisState.bookView = dom.analysisBookView.value; renderAnalysis(lastResult); });
-  if (dom.performanceMode) dom.performanceMode.addEventListener("change", () => { performanceMode = dom.performanceMode.value; renderPortfolioChart(lastResult); renderProductCharts(lastResult.points || [], lastResult.fills || []); renderAnalysis(lastResult); });
+  if (dom.performanceMode) dom.performanceMode.addEventListener("change", () => { performanceMode = dom.performanceMode.value; renderPortfolioChart(lastResult); renderProductCharts(lastResult.points || [], lastResult.fills || []); renderLogsPage(lastResult); renderAnalysis(lastResult); });
+  if (dom.logProduct) dom.logProduct.addEventListener("change", () => renderLogChart(lastResult));
   if (dom.heroRangeTabs) {
     dom.heroRangeTabs.addEventListener("click", (e) => {
       const button = e.target.closest("button[data-range]");
@@ -2364,6 +2528,7 @@ function bindEvents() {
       tabPanels.forEach((p) => { const isT = p.getAttribute("data-tab-panel") === target; p.classList.toggle("overview-hidden", !isT); p.classList.toggle("on", isT); });
       window.dispatchEvent(new Event("resize"));
       if (target === "analysis") requestAnimationFrame(maybeRenderAnalysis);
+      if (target === "logs") requestAnimationFrame(() => renderLogsPage(lastResult));
     });
   });
 }
@@ -2372,6 +2537,7 @@ async function main() {
   loadSettings();
   renderDataFiles();
   renderProductCharts([], []);
+  renderLogsPage(lastResult);
   bindEvents();
   setStatus("Ready.");
 }
