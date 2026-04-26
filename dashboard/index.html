@@ -82,6 +82,19 @@ body::before {
   transition: grid-template-columns 220ms cubic-bezier(.4,.0,.2,1);
 }
 .app.collapsed { grid-template-columns: 56px 1fr; }
+
+/* topbar */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  height: 52px;
+  background: rgba(9, 9, 11, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line-1);
+}
 .app.collapsed .sidebar > :not(.brand):not(.collapse-rail):not(.collapse-toggle) { display: none; }
 .app.collapsed .brand { padding: 14px 12px; justify-content: center; border-bottom: 1px solid var(--line-1); }
 .app.collapsed .brand > div { display: none; }
@@ -108,7 +121,7 @@ body::before {
 
 .collapse-toggle {
   position: absolute;
-  top: 16px; right: -12px;
+  top: 16px; left: 268px; /* 280px sidebar - 12px offset */
   width: 24px; height: 24px;
   display: grid; place-items: center;
   background: var(--bg-2);
@@ -117,10 +130,10 @@ body::before {
   border-radius: 50%;
   cursor: pointer;
   z-index: 20;
-  transition: transform 220ms, background 0.1s;
+  transition: transform 220ms, left 220ms, background 0.1s;
 }
+.app.collapsed .collapse-toggle { left: 44px; transform: rotate(180deg); }
 .collapse-toggle:hover { color: var(--ink-1); background: var(--bg-3); }
-.app.collapsed .collapse-toggle { transform: rotate(180deg); }
 
 /* ===== sidebar =========================================== */
 .sidebar {
@@ -1425,12 +1438,12 @@ table.tbl {
 </head>
 <body>
 <div class="app">
+  <button class="collapse-toggle" id="collapseToggle" title="Collapse sidebar">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
 
   <!-- ============ SIDEBAR ============ -->
   <aside class="sidebar" data-screen-label="sidebar">
-    <button class="collapse-toggle" id="collapseToggle" title="Collapse sidebar">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-    </button>
     <!-- collapsed-state mini rail -->
     <div class="collapse-rail">
       <button class="rail-btn on" data-rail="overview" title="Overview">
