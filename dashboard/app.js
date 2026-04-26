@@ -8,7 +8,7 @@ const DATA_FILES = [
 ];
 
 const DATA_BASE_PATH = "ROUND_3/ROUND3";
-const DEFAULT_STRATEGY_PATH = "ROUND_3/mm_strategy.py";
+const DEFAULT_STRATEGY_PATH = "ROUND_3/R3_V2.py";
 
 const dom = {
   dataFileList: document.getElementById("dataFileList"),
