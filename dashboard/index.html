@@ -81,47 +81,13 @@ body::before {
   min-height: 100vh;
   transition: grid-template-columns 220ms cubic-bezier(.4,.0,.2,1);
 }
-.app.collapsed { grid-template-columns: 56px 1fr; }
-
-/* topbar */
-.topbar {
-  position: sticky; top: 0; z-index: 10;
-  display: flex; align-items: center;
-  gap: 16px;
-  padding: 0 24px;
-  height: 52px;
-  background: rgba(9, 9, 11, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--line-1);
-}
-.app.collapsed .sidebar > :not(.brand):not(.collapse-rail):not(.collapse-toggle) { display: none; }
-.app.collapsed .brand { padding: 14px 12px; justify-content: center; border-bottom: 1px solid var(--line-1); }
-.app.collapsed .brand > div { display: none; }
-.app.collapsed .collapse-rail { display: flex; }
-.collapse-rail { display: none; flex-direction: column; align-items: center; gap: 8px; padding: 14px 0; flex: 1; }
-.collapse-rail .rail-btn {
-  width: 34px; height: 34px;
-  display: grid; place-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--ink-3); border-radius: 9px; cursor: pointer;
-}
-.collapse-rail .rail-btn:hover { background: var(--bg-2); color: var(--ink-1); border-color: var(--line-1); }
-.collapse-rail .rail-btn.on { background: oklch(0.76 0.13 220 / 0.16); color: var(--accent); border-color: oklch(0.76 0.13 220 / 0.35); }
-.collapse-rail .rail-divider { width: 24px; height: 1px; background: var(--line-1); margin: 4px 0; }
-.collapse-rail .rail-cta {
-  margin-top: auto;
-  width: 34px; height: 34px;
-  display: grid; place-items: center;
-  background: var(--accent); color: oklch(0.12 0.015 260);
-  border: 0; border-radius: 9px; cursor: pointer;
-  box-shadow: 0 8px 20px -10px oklch(0.76 0.13 220 / 0.75);
-}
+.app.collapsed { grid-template-columns: 0px 1fr; }
+.app.collapsed .sidebar { border-right: 0; }
+.app.collapsed .sidebar > * { display: none !important; }
 
 .collapse-toggle {
-  position: absolute;
-  top: 16px; left: 268px; /* 280px sidebar - 12px offset */
+  position: fixed;
+  top: 20px; left: 268px; /* 280 - 12 */
   width: 24px; height: 24px;
   display: grid; place-items: center;
   background: var(--bg-2);
@@ -129,11 +95,12 @@ body::before {
   color: var(--ink-2);
   border-radius: 50%;
   cursor: pointer;
-  z-index: 20;
-  transition: transform 220ms, left 220ms, background 0.1s;
+  z-index: 100;
+  transition: all 220ms cubic-bezier(.4,.0,.2,1);
+  box-shadow: var(--shadow-1);
 }
-.app.collapsed .collapse-toggle { left: 44px; transform: rotate(180deg); }
-.collapse-toggle:hover { color: var(--ink-1); background: var(--bg-3); }
+.app.collapsed .collapse-toggle { left: 12px; transform: rotate(180deg); }
+.collapse-toggle:hover { color: var(--ink-1); background: var(--bg-3); border-color: var(--line-3); }
 
 /* ===== sidebar =========================================== */
 .sidebar {

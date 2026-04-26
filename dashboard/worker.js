@@ -18,39 +18,36 @@ self.onmessage = async (e) => {
 
   if (type === "run") {
     try {
-      // 1. Load the engine if not already loaded
+      // 1. Define the engine if provided (or first run)
       if (engine) {
-        engineCode = engine;
+        // Run engine code once to define run_dashboard_backtest and datamodel
+        await pyodide.runPythonAsync(engine);
       }
 
-      // 2. Prepare the python environment
+      // 2. Prepare the execution variables
       pyodide.globals.set("strategy_code", strategy);
       pyodide.globals.set("file_map_json", JSON.stringify(fileMap));
       pyodide.globals.set("matching_mode", matchingMode);
       pyodide.globals.set("limits_override_json", JSON.stringify(limitsOverride));
 
       const progressCallback = (completed, total) => {
-        self.postMessage({ type: "progress", completed, total });
+        self.postMessage({ type: "progress", completed: Number(completed), total: Number(total) });
       };
-      pyodide.globals.set("progress_callback", progressCallback);
+      pyodide.registerJsInternal("dashboard_progress_callback", progressCallback);
 
-      // 3. Execute the backtest
+      // 3. Execute the backtest call
+      // Note: run_dashboard_backtest is already defined in the global scope from step 1
       const resultJson = await pyodide.runPythonAsync(`
 import asyncio
-from datamodel import *
-# engine is injected into the global scope
-${engineCode}
-
-async def run():
+async def _execute_simulation():
     return await run_dashboard_backtest(
         strategy_code, 
         file_map_json, 
         matching_mode, 
         limits_override_json,
-        progress_callback=progress_callback
+        progress_callback=dashboard_progress_callback
     )
-
-asyncio.run(run())
+asyncio.run(_execute_simulation())
       `);
 
       self.postMessage({ type: "result", result: resultJson });
