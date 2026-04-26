@@ -15,6 +15,9 @@ const dom = {
   strategyInput: document.getElementById("strategyInput"),
   dropZone: document.getElementById("dropZone"),
   strategyMeta: document.getElementById("strategyMeta"),
+  logInput: document.getElementById("logInput"),
+  logDropZone: document.getElementById("logDropZone"),
+  logMeta: document.getElementById("logMeta"),
   status: document.getElementById("status"),
   runButton: document.getElementById("runButton"),
   runProgress: document.getElementById("runProgress"),
@@ -29,6 +32,7 @@ const dom = {
   portfolioChart: document.getElementById("portfolioChart"),
   productCharts: document.getElementById("productCharts"),
   exportExcel: document.getElementById("exportExcel"),
+  exportExcelButton: document.getElementById("exportExcelButton"),
   exportStatus: document.getElementById("exportStatus"),
   fillsTableBody: document.querySelector("#fillsTable tbody"),
   analysisProduct: document.getElementById("analysisProduct"),
@@ -1998,6 +2002,48 @@ function renderSyntheticChart() {
   );
 }
 
+function safeExportName(value) {
+  return String(value || "prosperity")
+    .replace(/\.[^.]+$/g, "")
+    .replace(/[^a-z0-9._-]+/gi, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80) || "prosperity";
+}
+
+async function saveWorkbookFile(workbook, filename) {
+  const XLSX = window.XLSX;
+  const bytes = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([bytes], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  if (window.showSaveFilePicker) {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: filename,
+      types: [
+        {
+          description: "Excel workbook",
+          accept: {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+          },
+        },
+      ],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return { mode: "picker", name: handle.name || filename };
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  return { mode: "download", name: filename };
+}
+
 async function exportExcel() {
   if (!lastResult || !lastResult.points || lastResult.points.length === 0) {
     setStatus("Run a simulation before exporting.", true);
@@ -2009,7 +2055,8 @@ async function exportExcel() {
     return;
   }
 
-  dom.exportExcel.disabled = true;
+  if (dom.exportExcel) dom.exportExcel.disabled = true;
+  if (dom.exportExcelButton) dom.exportExcelButton.disabled = true;
   if (dom.exportStatus) dom.exportStatus.textContent = "Building…";
 
   try {
@@ -2694,29 +2741,28 @@ async function exportExcel() {
       [26,6,12, 12,12,22,24]);
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Write & POST
+    // Save in the browser. showSaveFilePicker opens a native Save As prompt
+    // where supported; otherwise the browser downloads the workbook.
     // ─────────────────────────────────────────────────────────────────────────
-    const wbBin = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-    const filename = `${strategyName}_output.xlsx`;
-    const resp = await fetch("/save-excel", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename, data: wbBin }),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || `HTTP ${resp.status}`);
-    }
-    const saved = await resp.json();
+    const sourceName = result.source?.filename || strategyName;
+    const filename = `${safeExportName(sourceName)}_output.xlsx`;
+    const saved = await saveWorkbookFile(wb, filename);
     const sheetCount = wb.SheetNames.length;
-    if (dom.exportStatus) dom.exportStatus.textContent = `Saved (${sheetCount} tabs) → ${saved.saved}`;
-    setStatus(`Excel saved: ${saved.saved}`);
+    const action = saved.mode === "picker" ? "Saved" : "Downloaded";
+    if (dom.exportStatus) dom.exportStatus.textContent = `${action} (${sheetCount} tabs) → ${saved.name}`;
+    setStatus(`Excel ${saved.mode === "picker" ? "saved" : "downloaded"}: ${saved.name}`);
   } catch (err) {
-    console.error(err);
-    if (dom.exportStatus) dom.exportStatus.textContent = `Failed: ${err.message}`;
-    setStatus(`Export failed: ${err.message}`, true);
+    if (err?.name === "AbortError") {
+      if (dom.exportStatus) dom.exportStatus.textContent = "Export canceled.";
+      setStatus("Export canceled.");
+    } else {
+      console.error(err);
+      if (dom.exportStatus) dom.exportStatus.textContent = `Failed: ${err.message}`;
+      setStatus(`Export failed: ${err.message}`, true);
+    }
   } finally {
-    dom.exportExcel.disabled = false;
+    if (dom.exportExcel) dom.exportExcel.disabled = false;
+    if (dom.exportExcelButton) dom.exportExcelButton.disabled = false;
   }
 }
 
@@ -2815,6 +2861,247 @@ function updateSyntheticRunOptions() {
   dom.syntheticRun.value = runs.some((run) => run.label === current) ? current : "Current Run";
 }
 
+function splitLogSections(text) {
+  const markers = ["Sandbox logs:", "Activities log:", "Trade History:"];
+  const sections = {};
+  for (const marker of markers) {
+    const start = text.indexOf(marker);
+    if (start < 0) continue;
+    let end = text.length;
+    for (const other of markers) {
+      if (other === marker) continue;
+      const idx = text.indexOf(other, start + marker.length);
+      if (idx >= 0 && idx < end) end = idx;
+    }
+    sections[marker] = text.slice(start + marker.length, end).trim();
+  }
+  return sections;
+}
+
+function parseSemicolonTable(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const headerIndex = lines.findIndex((line) => line.includes(";") && line.includes("timestamp"));
+  if (headerIndex < 0) return [];
+  const headers = lines[headerIndex].split(";").map((h) => h.trim());
+  const rows = [];
+  for (const line of lines.slice(headerIndex + 1)) {
+    if (!line.includes(";")) break;
+    const cells = line.split(";");
+    if (cells.length < headers.length) continue;
+    const row = {};
+    headers.forEach((header, idx) => {
+      row[header] = cells[idx]?.trim() ?? "";
+    });
+    rows.push(row);
+  }
+  return rows;
+}
+
+function toNumber(value) {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseDepth(row, side, level) {
+  return {
+    price: toNumber(row[`${side}_price_${level}`]),
+    volume: toNumber(row[`${side}_volume_${level}`]),
+  };
+}
+
+function extractTradeHistory(section) {
+  if (!section) return [];
+  const start = section.indexOf("[");
+  const end = section.lastIndexOf("]");
+  if (start < 0 || end <= start) return [];
+  try {
+    const parsed = JSON.parse(section.slice(start, end + 1));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function computePortfolioMetrics(portfolioPoints) {
+  const values = portfolioPoints.map((p) => p.portfolio_mtm_pnl).filter((v) => Number.isFinite(v));
+  if (!values.length) {
+    return {
+      final_pnl: 0,
+      max_drawdown_abs: 0,
+      max_drawdown_pct: null,
+      sharpe: null,
+      annualized_sharpe: null,
+      sortino: null,
+      calmar: null,
+    };
+  }
+  let hwm = values[0];
+  let maxDd = 0;
+  let maxDdPct = null;
+  for (const value of values) {
+    hwm = Math.max(hwm, value);
+    const dd = hwm - value;
+    maxDd = Math.max(maxDd, dd);
+    if (hwm > 0) {
+      const pct = dd / hwm;
+      maxDdPct = maxDdPct == null ? pct : Math.max(maxDdPct, pct);
+    }
+  }
+  const returns = values.slice(1).map((value, idx) => value - values[idx]);
+  const mean = returns.length ? returns.reduce((sum, value) => sum + value, 0) / returns.length : 0;
+  const variance = returns.length > 1
+    ? returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (returns.length - 1)
+    : 0;
+  const stdev = Math.sqrt(variance);
+  const downside = returns.length
+    ? Math.sqrt(returns.reduce((sum, value) => sum + Math.min(0, value) ** 2, 0) / returns.length)
+    : 0;
+  const sharpe = stdev > 0 ? mean / stdev : null;
+  const finalPnl = values[values.length - 1];
+  return {
+    final_pnl: finalPnl,
+    max_drawdown_abs: maxDd,
+    max_drawdown_pct: maxDdPct,
+    sharpe,
+    annualized_sharpe: sharpe == null ? null : sharpe * Math.sqrt(252),
+    sortino: downside > 0 ? mean / downside : null,
+    calmar: maxDd > 0 ? finalPnl / maxDd : null,
+  };
+}
+
+function parseImcBacktesterLog(text, filename = "uploaded log") {
+  const sections = splitLogSections(text);
+  const activityRows = parseSemicolonTable(sections["Activities log:"] || text);
+  if (!activityRows.length) {
+    throw new Error("Could not find an Activities log table in the uploaded file.");
+  }
+
+  const points = [];
+  const portfolioByKey = new Map();
+  for (const row of activityRows) {
+    const day = toNumber(row.day) ?? 0;
+    const timestamp = toNumber(row.timestamp);
+    const product = row.product || row.symbol || row.Product;
+    if (timestamp == null || !product) continue;
+
+    const bidLevels = [1, 2, 3].map((level) => parseDepth(row, "bid", level)).filter((v) => v.price != null);
+    const askLevels = [1, 2, 3].map((level) => parseDepth(row, "ask", level)).filter((v) => v.price != null);
+    const pnl = toNumber(row.profit_and_loss) ?? toNumber(row.pnl) ?? 0;
+    const point = {
+      day,
+      timestamp,
+      product,
+      mid_price: toNumber(row.mid_price),
+      best_bid: bidLevels[0]?.price ?? null,
+      best_ask: askLevels[0]?.price ?? null,
+      bid_prices: bidLevels.map((v) => v.price),
+      bid_volumes: bidLevels.map((v) => v.volume ?? 0),
+      ask_prices: askLevels.map((v) => v.price),
+      ask_volumes: askLevels.map((v) => v.volume ?? 0),
+      position: toNumber(row.position) ?? 0,
+      realized_pnl: pnl,
+      product_mtm_pnl: pnl,
+      portfolio_mtm_pnl: null,
+    };
+    points.push(point);
+    const key = `${day}|${timestamp}`;
+    portfolioByKey.set(key, {
+      day,
+      timestamp,
+      portfolio_mtm_pnl: (portfolioByKey.get(key)?.portfolio_mtm_pnl || 0) + pnl,
+    });
+  }
+
+  const portfolioPoints = [...portfolioByKey.values()].sort(sortByDayThenTs);
+  const portfolioLookup = new Map(portfolioPoints.map((p) => [`${p.day}|${p.timestamp}`, p.portfolio_mtm_pnl]));
+  points.forEach((point) => {
+    point.portfolio_mtm_pnl = portfolioLookup.get(parseKey(point)) ?? null;
+  });
+
+  const positionByProduct = new Map();
+  const fills = [];
+  const marketTrades = extractTradeHistory(sections["Trade History:"]).map((trade, idx) => {
+    const product = trade.symbol || trade.product || trade.Product || "";
+    const day = toNumber(trade.day) ?? 0;
+    const timestamp = toNumber(trade.timestamp) ?? 0;
+    const quantity = Math.abs(toNumber(trade.quantity) ?? 0);
+    const buyer = trade.buyer || "";
+    const seller = trade.seller || "";
+    const base = {
+      day,
+      timestamp,
+      product,
+      price: toNumber(trade.price) ?? 0,
+      quantity,
+      buyer,
+      seller,
+    };
+    const ownSide = /SUBMISSION|SUBMITTED|YOU|ME/i.test(buyer)
+      ? "BUY"
+      : /SUBMISSION|SUBMITTED|YOU|ME/i.test(seller)
+        ? "SELL"
+        : null;
+    if (ownSide && product) {
+      const prevPosition = positionByProduct.get(product) || 0;
+      const signedQty = ownSide === "BUY" ? quantity : -quantity;
+      const position = prevPosition + signedQty;
+      positionByProduct.set(product, position);
+      fills.push({
+        seq: idx,
+        day,
+        timestamp,
+        product,
+        side: ownSide,
+        fill_type: "website_log",
+        price: base.price,
+        quantity,
+        position,
+        realized_pnl: null,
+      });
+    }
+    return base;
+  });
+
+  return {
+    portfolio_points: portfolioPoints,
+    points,
+    fills,
+    market_trades: marketTrades,
+    state_logs: [],
+    metrics: computePortfolioMetrics(portfolioPoints),
+    matching_mode: "website_log",
+    limits_override: {},
+    source: {
+      type: "imc_backtester_log",
+      filename,
+    },
+  };
+}
+
+function handleLogFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const result = parseImcBacktesterLog(String(reader.result || ""), file.name);
+      applyResult(result);
+      updateSyntheticRunOptions();
+      if (dom.logMeta) dom.logMeta.textContent = `Loaded log: ${file.name}`;
+      setStatus(`Loaded IMC log (${result.points.length.toLocaleString()} rows).`);
+    } catch (error) {
+      console.error(error);
+      setStatus(error?.message || String(error), true);
+      if (dom.logMeta) dom.logMeta.textContent = "Could not parse log";
+    }
+  };
+  reader.onerror = () => setStatus(`Could not read ${file.name}`, true);
+  reader.readAsText(file);
+}
+
 function handleStrategyFile(file) {
   if (!file) {
     return;
@@ -2850,6 +3137,24 @@ function bindEvents() {
     dom.dropZone.classList.remove("dragover");
     handleStrategyFile(event.dataTransfer?.files?.[0]);
   });
+
+  if (dom.logInput) {
+    dom.logInput.addEventListener("change", (event) => {
+      handleLogFile(event.target.files?.[0]);
+    });
+  }
+  if (dom.logDropZone) {
+    dom.logDropZone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      dom.logDropZone.classList.add("dragover");
+    });
+    dom.logDropZone.addEventListener("dragleave", () => dom.logDropZone.classList.remove("dragover"));
+    dom.logDropZone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dom.logDropZone.classList.remove("dragover");
+      handleLogFile(event.dataTransfer?.files?.[0]);
+    });
+  }
 
   dom.runButton.addEventListener("click", runSimulation);
 
@@ -2935,6 +3240,9 @@ function bindEvents() {
   }
   if (dom.syntheticRun) {
     dom.syntheticRun.addEventListener("change", renderSyntheticChart);
+  }
+  if (dom.exportExcelButton) {
+    dom.exportExcelButton.addEventListener("click", exportExcel);
   }
 
   const tabButtons = document.querySelectorAll("[data-tab-target]");

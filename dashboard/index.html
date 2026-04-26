@@ -1328,6 +1328,20 @@ table.tbl {
       </div>
     </div>
 
+    <!-- external logs -->
+    <div class="section">
+      <div class="section-head">
+        <span class="section-title">OOS log</span>
+        <label class="section-action" for="logInput" style="cursor:pointer">Upload</label>
+      </div>
+      <div class="drop" id="logDropZone">
+        <strong>Drop an IMC log</strong>
+        <div class="muted" style="font-size:11px;margin-top:2px">from website backtester</div>
+        <input id="logInput" type="file" accept=".log,.txt,.json,.csv" style="position:absolute;inset:0;opacity:0;cursor:pointer" />
+        <div class="file-pill" id="logMeta" style="position:relative;z-index:1">No log loaded</div>
+      </div>
+    </div>
+
     <!-- run config -->
     <div class="section">
       <div class="section-head">
@@ -1379,6 +1393,7 @@ table.tbl {
         <input type="checkbox" id="exportExcel" />
         <span>Export output to Excel</span>
       </label>
+      <button id="exportExcelButton" class="section-action" type="button" style="margin-top:8px;width:100%">Export Excel...</button>
       <span id="exportStatus" style="font-size:11px;color:var(--ink-3)"></span>
       <div id="status" style="margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-2)">Initializing Pyodide...</div>
     </div>
