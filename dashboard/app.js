@@ -553,6 +553,15 @@ function computeRange(values) {
   return [min - pad, max + pad];
 }
 
+function constantFiniteValue(values) {
+  const clean = values.filter((v) => Number.isFinite(v));
+  if (clean.length === 0) {
+    return null;
+  }
+  const first = clean[0];
+  return clean.every((value) => value === first) ? first : null;
+}
+
 function stitchSeriesByDay(rows, valueKey) {
   const byDay = new Map();
   for (const row of rows) {
@@ -1121,7 +1130,17 @@ function renderProductCharts(points, fills) {
     const isFixedValueProduct = Object.hasOwn(FIXED_VALUE_PRODUCTS, product);
     const fairValue = FIXED_VALUE_PRODUCTS[product];
     const priceValues = isFixedValueProduct ? productFills.map((f) => f.price) : productPoints.map((p) => p.mid_price);
+    const bidValues = productPoints.map((p) => p.best_bid);
+    const askValues = productPoints.map((p) => p.best_ask);
     const mtmValues = stitchedProductPoints.map((p) => p.stitchedValue);
+    const constantPrice = constantFiniteValue(priceValues);
+    const constantPnl = constantFiniteValue(mtmValues);
+    const constantBid = constantFiniteValue(bidValues);
+    const constantAsk = constantFiniteValue(askValues);
+    const isConstantMarket = !isFixedValueProduct
+      && constantPrice !== null
+      && constantPnl !== null
+      && productPoints.length > 0;
     const fillX = productFills.map((f) => indexByKey.get(parseFillKey(f))).filter((idx) => idx !== undefined);
     const fillY = productFills
       .map((f) => {
@@ -1144,6 +1163,14 @@ function renderProductCharts(points, fills) {
       strike.className = "product-chart-strike";
       strike.textContent = `Strike ${VOUCHER_STRIKES[product].toLocaleString()}`;
       head.appendChild(strike);
+    }
+    if (isConstantMarket) {
+      const note = document.createElement("span");
+      note.className = "product-chart-note";
+      note.textContent = constantBid !== null && constantAsk !== null
+        ? `Constant ${fmtNumber(constantBid)} x ${fmtNumber(constantAsk)}`
+        : "Flat source data";
+      head.appendChild(note);
     }
     card.appendChild(head);
 
@@ -1219,7 +1246,7 @@ function renderProductCharts(points, fills) {
         yaxis: "y1",
       });
     } else {
-      traces.unshift({
+      const priceTraces = [{
         type: "scatter",
         mode: "lines",
         name: `${product} Mid Price`,
@@ -1229,8 +1256,57 @@ function renderProductCharts(points, fills) {
         customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
         hovertemplate: "%{customdata}<br>Mid=%{y:.2f}<extra></extra>",
         yaxis: "y1",
-      });
+      }];
+
+      if (VOUCHER_STRIKES[product]) {
+        priceTraces.unshift({
+          type: "scatter",
+          mode: "lines",
+          name: `${product} Best Bid`,
+          x: axis.x,
+          y: bidValues,
+          line: { color: "#38bdf8", width: 1, dash: "dot" },
+          customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
+          hovertemplate: "%{customdata}<br>Bid=%{y:.2f}<extra></extra>",
+          yaxis: "y1",
+        });
+        priceTraces.push({
+          type: "scatter",
+          mode: "lines",
+          name: `${product} Best Ask`,
+          x: axis.x,
+          y: askValues,
+          line: { color: "#fb7185", width: 1, dash: "dot" },
+          customdata: productPoints.map((p) => `D${p.day} T${p.timestamp}`),
+          hovertemplate: "%{customdata}<br>Ask=%{y:.2f}<extra></extra>",
+          yaxis: "y1",
+        });
+      }
+
+      traces.unshift(...priceTraces);
     }
+
+    const priceRangeValues = VOUCHER_STRIKES[product]
+      ? [...bidValues, ...priceValues, ...askValues, ...fillY]
+      : [...priceValues, ...fillY];
+    const annotations = isConstantMarket
+      ? [
+          {
+            text: constantBid !== null && constantAsk !== null
+              ? `Flat source quotes: bid ${fmtNumber(constantBid)}, ask ${fmtNumber(constantAsk)}, mid ${fmtNumber(constantPrice)}`
+              : `Flat source data: price ${fmtNumber(constantPrice)}, PnL ${fmtNumber(constantPnl)}`,
+            x: 0.5,
+            y: 0.08,
+            xref: "paper",
+            yref: "paper",
+            showarrow: false,
+            font: { color: MUTED_FONT_COLOR, size: 11 },
+            bgcolor: "rgba(15, 18, 24, 0.72)",
+            bordercolor: "rgba(148, 163, 184, 0.2)",
+            borderpad: 4,
+          },
+        ]
+      : [];
 
     Plotly.newPlot(
       plotTarget,
@@ -1244,7 +1320,7 @@ function renderProductCharts(points, fills) {
         },
         yaxis: {
           title: "Price",
-          range: computeRange([...priceValues, ...fillY]),
+          range: computeRange(priceRangeValues),
           side: "left",
         },
         yaxis2: {
@@ -1256,6 +1332,7 @@ function renderProductCharts(points, fills) {
           tickformat: ",.0f",
           color: FONT_COLOR,
         },
+        annotations,
         legend: { orientation: "h", y: 1.08, x: 0 },
       }),
       { responsive: true, displaylogo: false }
