@@ -84,7 +84,7 @@ body::before {
   transition: grid-template-columns 220ms cubic-bezier(.4,.0,.2,1);
 }
 .app.collapsed { grid-template-columns: 56px 1fr; }
-.app.collapsed .sidebar > :not(.brand):not(.collapse-rail) { display: none; }
+.app.collapsed .sidebar > :not(.brand):not(.collapse-rail):not(.collapse-toggle) { display: none; }
 .app.collapsed .brand { padding: 14px 12px; justify-content: center; border-bottom: 1px solid var(--line-1); }
 .app.collapsed .brand > div { display: none; }
 .app.collapsed .collapse-rail { display: flex; }
