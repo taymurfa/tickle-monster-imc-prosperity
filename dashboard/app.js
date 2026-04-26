@@ -1994,6 +1994,7 @@ function renderFillsTable(fills) {
 }
 
 function buildAnalysisProductOptions(points) {
+  if (!dom.analysisProduct) return;
   const current = analysisState.product;
   const products = [...new Set(points.map((p) => p.product))].sort();
   dom.analysisProduct.innerHTML = "";
@@ -2013,6 +2014,13 @@ function buildAnalysisProductOptions(points) {
   if (products.includes(current)) dom.analysisProduct.value = current;
   else dom.analysisProduct.value = products[0] ?? "ALL";
   analysisState.product = dom.analysisProduct.value;
+}
+
+function ensureAnalysisProductOptions(result) {
+  const optionCount = dom.analysisProduct?.options?.length || 0;
+  if (optionCount === 0) {
+    buildAnalysisProductOptions(result?.points || []);
+  }
 }
 
 function buildTraderIdOptions(result) {
@@ -2299,6 +2307,7 @@ function renderAnalysis(result = lastResult) {
   };
 
   analysisState.activeResult = safeResult;
+  ensureAnalysisProductOptions(safeResult);
   buildPointLookup(safeResult.points || []);
   buildTraderIdOptions(safeResult);
 
@@ -2347,6 +2356,13 @@ function applyResult(result) {
 
 function maybeRenderAnalysis() {
   if (!lastResult || !analysisState.dirty) return;
+  analysisState.dirty = false;
+  renderAnalysis(lastResult);
+}
+
+function forceRenderAnalysis() {
+  if (!lastResult) return;
+  buildAnalysisProductOptions(lastResult.points || []);
   analysisState.dirty = false;
   renderAnalysis(lastResult);
 }
@@ -2593,7 +2609,7 @@ function bindEvents() {
       tabButtons.forEach((b) => { b.classList.toggle("active", b === btn); b.classList.toggle("on", b === btn); });
       tabPanels.forEach((p) => { const isT = p.getAttribute("data-tab-panel") === target; p.classList.toggle("overview-hidden", !isT); p.classList.toggle("on", isT); });
       window.dispatchEvent(new Event("resize"));
-      if (target === "analysis") requestAnimationFrame(maybeRenderAnalysis);
+      if (target === "analysis") requestAnimationFrame(forceRenderAnalysis);
       if (target === "logs") requestAnimationFrame(() => renderLogsPage(lastResult));
     });
   });
@@ -2602,6 +2618,8 @@ function bindEvents() {
 async function main() {
   loadSettings();
   renderDataFiles();
+  buildAnalysisProductOptions(lastResult.points || []);
+  renderAnalysis(lastResult);
   renderProductCharts([], []);
   renderLogsPage(lastResult);
   bindEvents();
