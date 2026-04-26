@@ -13,13 +13,15 @@ Core files in this folder:
 
 ## Data and Strategy Inputs
 
-By default, the dashboard loads files from ../Mitchell:
+By default, the dashboard loads files from `dashboard/ROUND_3/ROUND3`:
 
-- prices_round_0_day_-2.csv
-- prices_round_0_day_-1.csv
-- trades_round_0_day_-2.csv
-- trades_round_0_day_-1.csv
-- SampleStrategy.py (default strategy)
+- prices_round_3_day_0.csv
+- prices_round_3_day_1.csv
+- prices_round_3_day_2.csv
+- trades_round_3_day_0.csv
+- trades_round_3_day_1.csv
+- trades_round_3_day_2.csv
+- ROUND_3/mm_strategy.py (default strategy)
 
 You can replace the strategy at runtime by dragging and dropping a .py file.
 

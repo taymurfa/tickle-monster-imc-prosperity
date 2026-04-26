@@ -1,14 +1,14 @@
 const DATA_FILES = [
-  "prices_round_2_day_-1.csv",
-  "prices_round_2_day_0.csv",
-  "prices_round_2_day_1.csv",
-  "trades_round_2_day_-1.csv",
-  "trades_round_2_day_0.csv",
-  "trades_round_2_day_1.csv",
+  "prices_round_3_day_0.csv",
+  "prices_round_3_day_1.csv",
+  "prices_round_3_day_2.csv",
+  "trades_round_3_day_0.csv",
+  "trades_round_3_day_1.csv",
+  "trades_round_3_day_2.csv",
 ];
 
-const DATA_BASE_PATH = "ROUND_2/ROUND2";
-const DEFAULT_STRATEGY_PATH = "ROUND_2/mm_strategy.py";
+const DATA_BASE_PATH = "ROUND_3/ROUND3";
+const DEFAULT_STRATEGY_PATH = "ROUND_3/mm_strategy.py";
 
 const dom = {
   dataFileList: document.getElementById("dataFileList"),
@@ -339,12 +339,12 @@ function renderDataFiles() {
   }
 }
 
-function applyRoundOneLabels() {
+function applyRoundThreeLabels() {
   if (dom.emeraldLimitLabel) {
-    dom.emeraldLimitLabel.textContent = "INTARIAN_PEPPER_ROOT Limit";
+    dom.emeraldLimitLabel.textContent = "HYDROGEL_PACK Limit";
   }
   if (dom.tomatoLimitLabel) {
-    dom.tomatoLimitLabel.textContent = "ASH_COATED_OSMIUM Limit";
+    dom.tomatoLimitLabel.textContent = "VELVETFRUIT_EXTRACT Limit";
   }
 }
 
@@ -481,12 +481,12 @@ function buildTimeAxis(rows) {
 }
 
 function getSelectedLimits() {
-  const pepper = Number.parseInt(dom.emeraldLimit.value, 10);
-  const osmium = Number.parseInt(dom.tomatoLimit.value, 10);
+  const hydrogelPack = Number.parseInt(dom.emeraldLimit.value, 10);
+  const velvetfruitExtract = Number.parseInt(dom.tomatoLimit.value, 10);
 
   return {
-    INTARIAN_PEPPER_ROOT: Number.isFinite(pepper) && pepper > 0 ? pepper : 80,
-    ASH_COATED_OSMIUM: Number.isFinite(osmium) && osmium > 0 ? osmium : 80,
+    HYDROGEL_PACK: Number.isFinite(hydrogelPack) && hydrogelPack > 0 ? hydrogelPack : 200,
+    VELVETFRUIT_EXTRACT: Number.isFinite(velvetfruitExtract) && velvetfruitExtract > 0 ? velvetfruitExtract : 200,
   };
 }
 
@@ -2817,7 +2817,7 @@ function bindEvents() {
 
 async function main() {
   renderDataFiles();
-  applyRoundOneLabels();
+  applyRoundThreeLabels();
   bindEvents();
   updateSyntheticRunOptions();
   setStatus("Initializing Pyodide...");
