@@ -19,16 +19,66 @@ LIMITS = {
     "INTARIAN_PEPPER_ROOT": 80,
     "HYDROGEL_PACK": 200,
     "VELVETFRUIT_EXTRACT": 200,
-    "VEV_4000": 50,
-    "VEV_4500": 50,
-    "VEV_5000": 50,
-    "VEV_5100": 50,
-    "VEV_5200": 50,
-    "VEV_5300": 50,
-    "VEV_5400": 50,
-    "VEV_5500": 50,
-    "VEV_6000": 50,
-    "VEV_6500": 50,
+    "VEV_4000": 300,
+    "VEV_4500": 300,
+    "VEV_5000": 300,
+    "VEV_5100": 300,
+    "VEV_5200": 300,
+    "VEV_5300": 300,
+    "VEV_5400": 300,
+    "VEV_5500": 300,
+    "VEV_6000": 300,
+    "VEV_6500": 300,
+    "GALAXY_SOUNDS_DARK_MATTER": 10,
+    "GALAXY_SOUNDS_BLACK_HOLES": 10,
+    "GALAXY_SOUNDS_PLANETARY_RINGS": 10,
+    "GALAXY_SOUNDS_SOLAR_WINDS": 10,
+    "GALAXY_SOUNDS_SOLAR_FLAMES": 10,
+    "SLEEP_POD_SUEDE": 10,
+    "SLEEP_POD_LAMB_WOOL": 10,
+    "SLEEP_POD_POLYESTER": 10,
+    "SLEEP_POD_NYLON": 10,
+    "SLEEP_POD_COTTON": 10,
+    "MICROCHIP_CIRCLE": 10,
+    "MICROCHIP_OVAL": 10,
+    "MICROCHIP_SQUARE": 10,
+    "MICROCHIP_RECTANGLE": 10,
+    "MICROCHIP_TRIANGLE": 10,
+    "PEBBLES_XS": 10,
+    "PEBBLES_S": 10,
+    "PEBBLES_M": 10,
+    "PEBBLES_L": 10,
+    "PEBBLES_XL": 10,
+    "ROBOT_VACUUMING": 10,
+    "ROBOT_MOPPING": 10,
+    "ROBOT_DISHES": 10,
+    "ROBOT_LAUNDRY": 10,
+    "ROBOT_IRONING": 10,
+    "UV_VISOR_YELLOW": 10,
+    "UV_VISOR_AMBER": 10,
+    "UV_VISOR_ORANGE": 10,
+    "UV_VISOR_RED": 10,
+    "UV_VISOR_MAGENTA": 10,
+    "TRANSLATOR_SPACE_GRAY": 10,
+    "TRANSLATOR_ASTRO_BLACK": 10,
+    "TRANSLATOR_ECLIPSE_CHARCOAL": 10,
+    "TRANSLATOR_GRAPHITE_MIST": 10,
+    "TRANSLATOR_VOID_BLUE": 10,
+    "PANEL_1X2": 10,
+    "PANEL_2X2": 10,
+    "PANEL_1X4": 10,
+    "PANEL_2X4": 10,
+    "PANEL_4X4": 10,
+    "OXYGEN_SHAKE_MORNING_BREATH": 10,
+    "OXYGEN_SHAKE_EVENING_BREATH": 10,
+    "OXYGEN_SHAKE_MINT": 10,
+    "OXYGEN_SHAKE_CHOCOLATE": 10,
+    "OXYGEN_SHAKE_GARLIC": 10,
+    "SNACKPACK_CHOCOLATE": 10,
+    "SNACKPACK_VANILLA": 10,
+    "SNACKPACK_PISTACHIO": 10,
+    "SNACKPACK_STRAWBERRY": 10,
+    "SNACKPACK_RASPBERRY": 10,
 }
 
 
@@ -658,7 +708,6 @@ async def run_dashboard_backtest(
     state_logs = []
     day_equity_paths = []
     fill_seq = 0
-    persistent_trader_data = ""
 
     total_ticks = sum(len(ds["prices"][0]) for ds in datasets)
     completed_ticks = 0
@@ -668,6 +717,7 @@ async def run_dashboard_backtest(
         prices_by_ts, products, day_num = dataset["prices"]
         trades_by_ts = dataset["trades"]
         dataset_listings = {p: Listing(p, p, 1) for p in products}
+        persistent_trader_data = ""
         
         state = TradingState(persistent_trader_data, 0, dataset_listings, {}, {}, {}, {}, Observation({}, {}))
         profit_loss = {p: 0.0 for p in products}

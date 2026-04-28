@@ -23,6 +23,7 @@ ROUND_MAP = {
     "2": {"path": "dashboard/ROUND_2/ROUND2", "days": (-1, 0, 1), "prefix": "round_2"},
     "3": {"path": "dashboard/ROUND_3/ROUND3", "days": (0, 1, 2), "prefix": "round_3"},
     "4": {"path": "dashboard/ROUND_4", "days": (1, 2, 3), "prefix": "round_4"},
+    "5": {"path": "dashboard/ROUND_5", "days": (2, 3, 4), "prefix": "round_5"},
 }
 
 def resolve_strategy(arg: str) -> tuple[str, str]:
@@ -35,6 +36,8 @@ def resolve_strategy(arg: str) -> tuple[str, str]:
             os.path.join(REPO_ROOT, "round3", "vfe_iterations"),
             os.path.join(DASHBOARD_DIR, "ROUND_3", "vfe_iterations"),
             os.path.join(DASHBOARD_DIR, "ROUND_4"),
+            os.path.join(DASHBOARD_DIR, "ROUND_5"),
+            os.path.join(REPO_ROOT, "round5"),
             os.path.join(REPO_ROOT, "round1"),
             os.path.join(REPO_ROOT, "round2"),
         ]
@@ -53,11 +56,16 @@ def resolve_strategy(arg: str) -> tuple[str, str]:
     with open(path, "r", encoding="utf-8") as f:
         code = f.read()
     
-    # Detect round from filename (e.g., R3_V28 -> Round 3)
-    round_num = "3" # Default
-    match = re.search(r"R(\d)", os.path.basename(path), re.I)
-    if match:
-        round_num = match.group(1)
+    # Detect round from directory path first, then filename
+    round_num = "3"  # Default
+    norm = path.replace("\\", "/")
+    dir_match = re.search(r"/ROUND_(\d)/", norm, re.I)
+    if dir_match:
+        round_num = dir_match.group(1)
+    else:
+        name_match = re.search(r"R(\d)", os.path.basename(path), re.I)
+        if name_match:
+            round_num = name_match.group(1)
     
     return code, round_num, path
 
@@ -103,9 +111,14 @@ def main(strategy_arg: str, matching_mode: str = "none") -> None:
     per_day_final = {d: pts[-1] for d, pts in sorted(per_day.items())}
     final_pnl = sum(per_day_final.values()) if per_day_final else 0
 
+    sharpe = metrics.get('annualized_sharpe')
+    if sharpe is None: sharpe = 0.0
+    max_dd = metrics.get('max_drawdown_abs')
+    if max_dd is None: max_dd = 0.0
+
     print(f"Final PnL:   {final_pnl:,.2f}")
-    print(f"Sharpe(ann): {metrics.get('annualized_sharpe', 0):.3f}")
-    print(f"Max DD:      {metrics.get('max_drawdown_abs', 0):,.2f}")
+    print(f"Sharpe(ann): {sharpe:.3f}")
+    print(f"Max DD:      {max_dd:,.2f}")
     print(f"Fills:       {len(payload['fills'])}")
     print(f"Per-day PnL: { {d: round(v,2) for d,v in per_day_final.items()} }")
 

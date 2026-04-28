@@ -80,6 +80,31 @@ const ROUND_CONFIGS = {
       VEV_4000: 4000, VEV_4500: 4500, VEV_5000: 5000, VEV_5100: 5100, VEV_5200: 5200,
       VEV_5300: 5300, VEV_5400: 5400, VEV_5500: 5500, VEV_6000: 6000, VEV_6500: 6500,
     },
+  },
+  "5": {
+    basePath: "ROUND_5",
+    files: [
+      "prices_round_5_day_2.csv",
+      "prices_round_5_day_3.csv",
+      "prices_round_5_day_4.csv",
+      "trades_round_5_day_2.csv",
+      "trades_round_5_day_3.csv",
+      "trades_round_5_day_4.csv",
+    ],
+    labels: { emerald: "R5 Product", tomato: "Unused" },
+    overviewProducts: [
+      "GALAXY_SOUNDS_DARK_MATTER", "GALAXY_SOUNDS_BLACK_HOLES", "GALAXY_SOUNDS_PLANETARY_RINGS", "GALAXY_SOUNDS_SOLAR_WINDS", "GALAXY_SOUNDS_SOLAR_FLAMES",
+      "SLEEP_POD_SUEDE", "SLEEP_POD_LAMB_WOOL", "SLEEP_POD_POLYESTER", "SLEEP_POD_NYLON", "SLEEP_POD_COTTON",
+      "MICROCHIP_CIRCLE", "MICROCHIP_OVAL", "MICROCHIP_SQUARE", "MICROCHIP_RECTANGLE", "MICROCHIP_TRIANGLE",
+      "PEBBLES_XS", "PEBBLES_S", "PEBBLES_M", "PEBBLES_L", "PEBBLES_XL",
+      "ROBOT_VACUUMING", "ROBOT_MOPPING", "ROBOT_DISHES", "ROBOT_LAUNDRY", "ROBOT_IRONING",
+      "UV_VISOR_YELLOW", "UV_VISOR_AMBER", "UV_VISOR_ORANGE", "UV_VISOR_RED", "UV_VISOR_MAGENTA",
+      "TRANSLATOR_SPACE_GRAY", "TRANSLATOR_ASTRO_BLACK", "TRANSLATOR_ECLIPSE_CHARCOAL", "TRANSLATOR_GRAPHITE_MIST", "TRANSLATOR_VOID_BLUE",
+      "PANEL_1X2", "PANEL_2X2", "PANEL_1X4", "PANEL_2X4", "PANEL_4X4",
+      "OXYGEN_SHAKE_MORNING_BREATH", "OXYGEN_SHAKE_EVENING_BREATH", "OXYGEN_SHAKE_MINT", "OXYGEN_SHAKE_CHOCOLATE", "OXYGEN_SHAKE_GARLIC",
+      "SNACKPACK_CHOCOLATE", "SNACKPACK_VANILLA", "SNACKPACK_PISTACHIO", "SNACKPACK_STRAWBERRY", "SNACKPACK_RASPBERRY",
+    ],
+    voucherStrikes: {},
   }
 };
 
@@ -637,6 +662,13 @@ function updateRound(round) {
   if (dom.emeraldLimitLabel) dom.emeraldLimitLabel.textContent = `${labels.emerald} Limit`;
   if (dom.tomatoLimitLabel) dom.tomatoLimitLabel.textContent = `${labels.tomato} Limit`;
 
+  if (round === "5" && dom.emeraldLimit) {
+    dom.emeraldLimit.value = "10";
+  }
+  if (dom.tomatoLimit) {
+    const field = dom.tomatoLimit.closest(".field");
+    if (field) field.style.display = round === "5" ? "none" : "";
+  }
   if (dom.voucherLimit) {
     const isOptionsRound = round === "3" || round === "4";
     dom.voucherLimit.closest(".field").style.display = isOptionsRound ? "" : "none";
@@ -1202,6 +1234,8 @@ function getSelectedLimits() {
     limits["HYDROGEL_PACK"] = eLim;
     limits["VELVETFRUIT_EXTRACT"] = tLim;
     products.forEach(p => { if (p.startsWith("VEV_")) limits[p] = vLim; });
+  } else if (currentRound === "5") {
+    products.forEach(p => { limits[p] = 10; });
   } else if (currentRound === "1" || currentRound === "2") {
     limits["ASH_COATED_OSMIUM"] = eLim;
     limits["INTARIAN_PEPPER_ROOT"] = tLim;
@@ -2546,7 +2580,7 @@ function bindEvents() {
     if (e.key === "Escape") closeFullscreenWidget();
     if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
     if (e.key.toLowerCase() === 'r') { e.preventDefault(); if (!dom.runButton.disabled) runSimulation(); }
-    else if (['0', '1', '2', '3', '4'].includes(e.key)) { dom.roundSelect.value = e.key; updateRound(e.key); saveSettings(); }
+    else if (['0', '1', '2', '3', '4', '5'].includes(e.key)) { dom.roundSelect.value = e.key; updateRound(e.key); saveSettings(); }
   });
   window.addEventListener("resize", () => {
     if (fullscreenWidget) resizePlotsInWidget(fullscreenWidget);
